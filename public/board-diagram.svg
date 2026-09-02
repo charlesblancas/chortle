@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 8 8" shape-rendering="crispEdges">
+  <defs>
+    <pattern id="ink-hatch" width=".24" height=".24" patternUnits="userSpaceOnUse">
+      <rect width=".24" height=".24" fill="#a7a8a3"/>
+      <path d="M-.06 .06L.06-.06M0 .24L.24 0M.18 .30L.30 .18" stroke="#969792" stroke-width=".018"/>
+    </pattern>
+    <pattern id="board" width="2" height="2" patternUnits="userSpaceOnUse">
+      <rect width="2" height="2" fill="#e9e5db"/>
+      <rect x="1" width="1" height="1" fill="url(#ink-hatch)"/>
+      <rect y="1" width="1" height="1" fill="url(#ink-hatch)"/>
+    </pattern>
+  </defs>
+  <rect width="8" height="8" fill="url(#board)"/>
+</svg>

@@ -2,24 +2,19 @@
     import Tile from "./Tile.svelte";
 
     export let status;
-    export let chessStatus;
     export let word;
-    export let chessGuess;
+    export let active = false;
+    export let compact = false;
+    export let previewLetter = "";
 </script>
 
-<div class="guess">
+<div class:active class:compact class="guess">
     <div class="tiles">
-        <Tile letter={word[0] || ""} status={status[0]} />
-        <Tile letter={word[1] || ""} status={status[1]} />
-        <Tile letter={word[2] || ""} status={status[2]} />
-        <Tile letter={word[3] || ""} status={status[3]} />
-        <Tile letter={word[4] || ""} status={status[4]} />
-    </div>
-    <div class="tiles">
-        <Tile letter={chessGuess[0] || ""} status={chessStatus[0]} />
-        <Tile letter={chessGuess[1] || ""} status={chessStatus[1]} />
-        <Tile letter={chessGuess[2] || ""} status={chessStatus[2]} />
-        <Tile letter={chessGuess[3] || ""} status={chessStatus[3]} />
+        <Tile letter={word[0] || (active && word.length === 0 ? previewLetter : "")} status={status[0]} {compact} ghost={active && word.length === 0 && !!previewLetter} />
+        <Tile letter={word[1] || (active && word.length === 1 ? previewLetter : "")} status={status[1]} {compact} ghost={active && word.length === 1 && !!previewLetter} />
+        <Tile letter={word[2] || (active && word.length === 2 ? previewLetter : "")} status={status[2]} {compact} ghost={active && word.length === 2 && !!previewLetter} />
+        <Tile letter={word[3] || (active && word.length === 3 ? previewLetter : "")} status={status[3]} {compact} ghost={active && word.length === 3 && !!previewLetter} />
+        <Tile letter={word[4] || (active && word.length === 4 ? previewLetter : "")} status={status[4]} {compact} ghost={active && word.length === 4 && !!previewLetter} />
     </div>
 </div>
 
@@ -29,8 +24,10 @@
         gap: 0.5rem;
     }
 
+    .compact .tiles { gap: 0.18rem; }
+
     .tiles {
         display: flex;
-        gap: 0.15rem;
+        gap: 0.3rem;
     }
 </style>

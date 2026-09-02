@@ -1,0 +1,12 @@
+{
+  "generated_at": "2026-09-01T03:58:34.9608351Z",
+  "curated_words": 997,
+  "wordle_union_words": 12950,
+  "full_union_words": 15921,
+  "curated_missing_from_wordle": 0,
+  "curated_missing_from_full": 0,
+  "wordle_only": 11953,
+  "full_only": 14924,
+  "structural_issues": 0,
+  "uppercase_entries": 0
+}

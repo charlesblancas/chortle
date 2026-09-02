@@ -1,272 +1,196 @@
 <script>
     import Chess from "./Chess.svelte";
     import Guess from "./Guess.svelte";
-    import { chessMove, chessDone, gameOver } from "../stores";
     import Instructions from "./Instructions.svelte";
     import GameOver from "./GameOver.svelte";
-    import { games } from "../games/output";
     import Keyboard from "./Keyboard.svelte";
-    import { possibilities } from "../games/possibilities";
     import GameError from "./GameError.svelte";
+    import { games } from "../games/final_games";
+    import { possibilities } from "../games/possibilities";
+    import { gameOver, showInstructions } from "../stores";
+    import { scoreWord } from "../gameRules";
+    import { gameStorageKey, readSavedGame, writeSavedGame } from "./gameStorage";
+    import { onMount, tick } from "svelte";
 
-    let wordGuesses = ["", "", "", "", ""];
-    let chessGuesses = ["", "", "", "", ""];
-    let statuses = [
-        [-1, -1, -1, -1, -1],
-        [-1, -1, -1, -1, -1],
-        [-1, -1, -1, -1, -1],
-        [-1, -1, -1, -1, -1],
-        [-1, -1, -1, -1, -1],
-    ];
-    let chessStatuses = [
-        [-1, -1, -1, -1],
-        [-1, -1, -1, -1],
-        [-1, -1, -1, -1],
-        [-1, -1, -1, -1],
-        [-1, -1, -1, -1],
-    ];
+    const FILE_LETTERS = "ABCDEFGH";
+    export let fixture = null;
+    export let dayOverride = NaN;
+    const ROWS = 5;
+    let guesses = Array(ROWS).fill("");
+    if (fixture?.initialGuess) guesses[0] = fixture.initialGuess.toUpperCase();
+    let statuses = Array.from({ length: ROWS }, () => Array(5).fill(-1));
+    let currentRow = 0;
+    let actions = fixture?.initialActions ? [...fixture.initialActions] : [];
+    let previewLetter = "";
+    let keyStatuses = {};
     let message = "";
+    let highlightFile = "";
+    let engineThinking = false;
+    let messageTimer;
+    const dailyStart = new Date("2026-09-01T00:00:00");
+    const today = new Date(new Date().toDateString());
+    const day = Math.max(1, Math.floor((today - dailyStart) / 86400000) + 1);
+    const selectedDay = Number.isFinite(dayOverride) ? Math.max(1, Math.floor(dayOverride)) : day;
+    const dailyGame = games[(selectedDay - 1) % games.length];
+    $: game = fixture?.game || dailyGame;
+    $: answer = game.word.toUpperCase();
+    let mated = fixture?.mated || false;
+    let hydrated = false;
+    const dateLabel = new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "long", year: "numeric" }).format(new Date());
+    $: storageKey = gameStorageKey(selectedDay, game);
 
-    function getIndexForToday() {
-        const oneDay = 24 * 60 * 60 * 1000; // hours*minutes*seconds*milliseconds
-        const startDate = new Date("Wed Jan 31 2024");
-        const currDate = new Date(new Date().toDateString());
-        return Math.round(Math.abs((currDate - startDate) / oneDay));
+    function saveGame(completed = $gameOver) {
+        if (!hydrated || fixture) return;
+        writeSavedGame(localStorage, storageKey, { guesses, statuses, currentRow, actions, keyStatuses, mated, completed });
     }
 
-    let chessDoneValue;
-    chessDone.subscribe((value) => {
-        chessDoneValue = value;
-    });
-
-    let currIndex = getIndexForToday();
-    let game = games[currIndex];
-    let answer = game.word.toUpperCase();
-    let chessAnswer = game.moves.split(" ")[1];
-    let currentActive = 0;
-
-    let gameOverValue;
-    gameOver.subscribe((value) => {
-        gameOverValue = value;
-    });
-
-    let chessMoveValue;
-    chessMove.subscribe((value) => {
-        chessMoveValue = value;
-        chessGuesses[currentActive] = value;
-        message = "";
-    });
-
-    let onKeyDown = (e) => {
-        let key = e.key;
-        userInput(key);
-    };
-
-    let onVisualKeyDown = (e) => {
-        let key = e.detail.key;
-        userInput(key);
-    };
-
-    let userInput = (key) => {
-        message = "";
-        // Single alphabet character
-        let regex = new RegExp("^[A-Za-z]$");
-
-        if (regex.test(key)) {
-            key = key.toUpperCase();
-            if (wordGuesses[currentActive].length < 5) {
-                wordGuesses[currentActive] = wordGuesses[currentActive] + key;
-            }
-            return;
-        }
-
-        if (key == "Backspace") {
-            if (wordGuesses[currentActive].length > 0) {
-                wordGuesses[currentActive] = wordGuesses[currentActive].slice(
-                    0,
-                    -1,
-                );
-            }
-            return;
-        }
-
-        if (key == "Enter") {
-            submitGuess();
-        }
-    };
-
-    let checkWord = (guess, answer) => {
-        let occurences = {};
-        let out = [];
-
-        for (let i = 0; i < answer.length; i++) {
-            if (answer[i] in occurences) {
-                occurences[answer[i]] = occurences[answer[i]] + 1;
+    onMount(() => {
+        if (!fixture) {
+            const saved = readSavedGame(localStorage, storageKey);
+            if (saved) {
+                guesses = saved.guesses;
+                statuses = saved.statuses;
+                currentRow = saved.currentRow;
+                actions = saved.actions;
+                keyStatuses = saved.keyStatuses;
+                mated = saved.mated;
+                // Let child components receive the restored rows before the
+                // result modal subscribes to the completed state.  This keeps
+                // a completed game visible, including its result grid, after
+                // a refresh.
+                tick().then(() => {
+                    gameOver.set(saved.completed);
+                    if (saved.completed) showInstructions.set(false);
+                });
             } else {
-                occurences[answer[i]] = 1;
+                gameOver.set(false);
             }
-        }
-
-        for (let i = 0; i < guess.length; i++) {
-            if (guess[i] === answer[i]) {
-                out[i] = 2;
-                occurences[guess[i]] = occurences[guess[i]] - 1;
-                continue;
-            }
-
-            if (answer.includes(guess[i])) {
-                out[i] = 1;
-                continue;
-            }
-
-            out[i] = 0;
-        }
-
-        for (let i = 0; i < guess.length; i++) {
-            if (guess[i] in occurences) {
-                if (out[i] == 2) { continue; }
-                if (out[i] == 1 && occurences[guess[i]] <= 0) {
-                    out[i] = 0;
-                }
-                occurences[guess[i]] = occurences[guess[i]] - 1;
-            }
-        }
-
-        return out;
-    };
-
-    let compareWithAnswer = (guess, chessGuess) => {
-        let out = checkWord(guess, answer);
-
-        if (chessDoneValue) {
-            chessGuess = chessAnswer;
-        }
-
-        for (let i = 0; i < chessGuess.length; i++) {
-            if (chessGuess[i] === chessAnswer[i]) {
-                out[i + 5] = 2;
-                continue;
-            }
-
-            if (chessAnswer.includes(chessGuess[i])) {
-                out[i + 5] = 1;
-                continue;
-            }
-
-            out[i + 5] = 0;
-        }
-
-        for (let i = currentActive; i < chessGuess.length; i++) {
-            if (out[i + 5] !== 2) {
-                return out;
-            }
-        }
-
-        chessDone.set(true);
-
-        return out;
-    };
-
-    let checkWin = (comparison) => {
-        for (let i = 0; i < comparison.length; i++) {
-            if (comparison[i] !== 2) {
-                return false;
-            }
-        }
-
-        return true;
-    };
-
-    let submitGuess = () => {
-        if (wordGuesses[currentActive].length < 5) {
-            message = "Not enough letters";
-            return;
-        }
-
-        if (!possibilities.includes(wordGuesses[currentActive].toLowerCase())) {
-            message = wordGuesses[currentActive] + " not in word list";
-            return;
-        }
-
-        if (chessMoveValue == "") {
-            message = "Put in a chess move";
-            return;
-        }
-
-        let comparison = compareWithAnswer(
-            wordGuesses[currentActive],
-            chessMoveValue,
-        );
-
-        statuses[currentActive] = comparison.slice(0, 5);
-        chessStatuses[currentActive] = comparison.slice(5);
-
-        if (checkWin(comparison)) {
-            gameOver.set(true);
-            return;
-        }
-
-        if (currentActive === 4) {
-            gameOver.set(true);
-            return;
-        }
-
-        currentActive += 1;
-
-        if (chessDoneValue) {
-            chessGuesses[currentActive] = chessAnswer;
-            chessStatuses[currentActive] = [2, 2, 2, 2];
         } else {
-            chessMove.set("");
+            gameOver.set(false);
         }
-    };
+        hydrated = true;
+    });
+
+    function clearGuidance() {
+        message = "";
+        highlightFile = "";
+        clearTimeout(messageTimer);
+    }
+
+    function input(key) {
+        if ($showInstructions || $gameOver || engineThinking) return;
+        clearGuidance();
+        previewLetter = "";
+        if (/^[A-Za-z]$/.test(key)) {
+            key = key.toUpperCase();
+            if (FILE_LETTERS.includes(key)) {
+                message = `${key} comes from a move starting on the ${key}-file.`;
+                highlightFile = key;
+                messageTimer = setTimeout(clearGuidance, 1500);
+                return;
+            }
+            if (guesses[currentRow].length < 5) { guesses[currentRow] += key; guesses = guesses; saveGame(); }
+        } else if (key === "Backspace") undo();
+        else if (key === "Enter") submit();
+    }
+
+    function handleWindowKeydown(event) {
+        if ($showInstructions || $gameOver) {
+            event.preventDefault();
+            return;
+        }
+        input(event.key);
+    }
+
+    function chessLetter(event) {
+        if (guesses[currentRow].length >= 5) return;
+        previewLetter = "";
+        actions = [...actions, event.detail];
+        mated = event.detail.mated || false;
+        guesses[currentRow] += event.detail.letter;
+        guesses = guesses;
+        if (!event.detail.pending) saveGame();
+    }
+
+    function resolveChessMove(event) {
+        const action = actions[event.detail.index];
+        if (!action) return;
+        actions = actions.map((item, index) => index === event.detail.index
+            ? { ...item, reply: event.detail.reply, mated: event.detail.mated, pending: false }
+            : item);
+        mated = event.detail.mated || false;
+        saveGame();
+    }
+
+    function undo() {
+        previewLetter = "";
+        const guess = guesses[currentRow];
+        if (!guess) return;
+        const letter = guess.at(-1);
+        guesses[currentRow] = guess.slice(0, -1);
+        if (FILE_LETTERS.includes(letter)) {
+            actions = actions.slice(0, -1);
+            if (mated) mated = false;
+        }
+        guesses = guesses;
+        saveGame();
+    }
+
+    function submit() {
+        const guess = guesses[currentRow];
+        if (guess.length < 5) { message = "Not enough letters"; return; }
+        if (!possibilities.includes(guess.toLowerCase())) { message = `${guess} not in word list`; return; }
+        const result = scoreWord(guess, answer);
+        let chessIndex = 0;
+        for (let i = 0; i < guess.length; i++) {
+            if (!FILE_LETTERS.includes(guess[i])) continue;
+            const action = actions[chessIndex++];
+            if (action && action.moveCorrect === false && result[i] === 2) result[i] = 1;
+        }
+        statuses[currentRow] = result; statuses = statuses;
+        const nextKeyStatuses = { ...keyStatuses };
+        for (let i = 0; i < guess.length; i++) {
+            const letter = guess[i];
+            nextKeyStatuses[letter] = Math.max(nextKeyStatuses[letter] ?? -1, result[i]);
+        }
+        keyStatuses = nextKeyStatuses;
+        if (result.every((x) => x === 2) || currentRow === ROWS - 1) { showInstructions.set(false); gameOver.set(true); saveGame(true); return; }
+        currentRow += 1;
+        actions = [];
+        saveGame(false);
+    }
 </script>
 
 <GameError {message} />
 <Instructions />
-<div>Game #{currIndex}</div>
-<GameOver word={answer} move={chessAnswer} {statuses} {chessStatuses} />
-<Chess fen={game.fen} movesString={game.moves} />
+<div class="meta"><span>Puzzle {String(selectedDay).padStart(4, "0")}</span><span>{dateLabel}</span><span>Attempt {currentRow + 1}/{ROWS}</span></div>
+<GameOver word={answer} {statuses} day={selectedDay} attempts={currentRow + 1} />
 <div class="guesses">
-    <Guess
-        status={statuses[0]}
-        chessStatus={chessStatuses[0]}
-        word={wordGuesses[0]}
-        chessGuess={chessGuesses[0]}
-    />
-    <Guess
-        status={statuses[1]}
-        chessStatus={chessStatuses[1]}
-        word={wordGuesses[1]}
-        chessGuess={chessGuesses[1]}
-    />
-    <Guess
-        status={statuses[2]}
-        chessStatus={chessStatuses[2]}
-        word={wordGuesses[2]}
-        chessGuess={chessGuesses[2]}
-    />
-    <Guess
-        status={statuses[3]}
-        chessStatus={chessStatuses[3]}
-        word={wordGuesses[3]}
-        chessGuess={chessGuesses[3]}
-    />
-    <Guess
-        status={statuses[4]}
-        chessStatus={chessStatuses[4]}
-        word={wordGuesses[4]}
-        chessGuess={chessGuesses[4]}
-    />
+    {#each guesses as guess, index}
+        <Guess status={statuses[index]} word={guess} active={index === currentRow} compact={index !== currentRow} previewLetter={index === currentRow ? previewLetter : ""} />
+    {/each}
 </div>
-<Keyboard on:key={onVisualKeyDown} />
-<svelte:window on:keydown={onKeyDown} />
+<Chess fen={game.fen} movesString={game.moves} {actions} {mated} disabled={mated || engineThinking || guesses[currentRow].length >= 5} {highlightFile} on:move={chessLetter} on:resolve={resolveChessMove} on:thinking={(event) => engineThinking = event.detail.active} on:preview={(event) => previewLetter = event.detail.letter} />
+{#if guesses[currentRow].length >= 5 && !$gameOver}<p class="row-ready">Row complete · press Enter to submit or Backspace to revise.</p>{/if}
+<p class="rule">A–H are played from the board.</p>
+<Keyboard {keyStatuses} on:key={(event) => input(event.detail.key)} />
+<svelte:window on:keydown={handleWindowKeydown} on:click={clearGuidance} />
 
 <style>
-    .guesses {
-        display: flex;
-        flex-direction: column;
-        gap: 0.5rem;
-        margin-bottom: 1rem;
+    .meta { display: flex; justify-content: center; gap: 0.55rem; padding: 0.5rem 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); color: var(--muted); font: 700 0.68rem/1 var(--mono); font-variant-numeric: tabular-nums; letter-spacing: 0.04em; text-align: center; text-transform: uppercase; }
+    .meta span + span::before { content: "·"; margin-right: 0.55rem; color: var(--burgundy); }
+    .rule { max-width: 30rem; margin: 0.9rem auto 0; padding-top: 0.65rem; border-top: 1px solid var(--line); text-align: center; color: var(--muted); font: 700 0.7rem/1 var(--sans); letter-spacing: 0.08em; text-transform: uppercase; }
+    .row-ready { margin: 0.55rem auto -0.3rem; color: var(--burgundy); text-align: center; font: 700 0.7rem/1.25 var(--sans); letter-spacing: 0.04em; }
+    .guesses { display: flex; flex-direction: column; align-items: center; gap: .25rem; margin: 0.4rem 0 0; }
+    @media (max-width: 510px) {
+        .meta { gap: 0.2rem; font-size: 0.56rem; }
+        .meta span + span::before { margin-right: 0.2rem; }
+        .rule { display: none; }
+        .row-ready { margin: 0.45rem auto 0; font-size: 0.64rem; }
+        :global(.keyboard) { margin-top: 1rem; }
+    }
+    @media (max-width: 420px) and (max-height: 760px) {
+        .guesses { gap: 0.18rem; margin-top: 0.25rem; }
+        :global(.keyboard) { margin-top: 0.15rem; }
     }
 </style>

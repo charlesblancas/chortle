@@ -25,3 +25,11 @@ dist-ssr
 
 # Local Netlify folder
 .netlify
+
+# Downloaded Lichess source snapshots are generation inputs, not deploy assets.
+src/games/data/lichess_db_puzzle_*.csv
+src/games/data/lichess_db_puzzle_*.csv.zst
+src/games/data/puzzles-current/
+
+# Replaced by the lightweight Sunfish worker.
+public/stockfish/

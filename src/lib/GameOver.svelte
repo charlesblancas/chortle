@@ -1,73 +1,51 @@
 <script>
     import Modal from "./Modal.svelte";
     import { gameOver } from "../stores";
-    import { copy } from "svelte-copy";
 
     export let word;
-    export let move;
     export let statuses;
-    export let chessStatuses;
-
-    const shareMessage = "https://chortle.select\n";
+    export let day;
+    export let attempts;
     let gameSummary = "";
-
+    let copied = false;
     let gameOverValue;
     gameOver.subscribe((value) => {
         gameOverValue = value;
-
-        if (value) {
-            gameSummary = generateSummary();
-        }
+        if (value) gameSummary = generateSummary();
     });
 
-    function randomPartyEmoji() {
-        let possible = ["🎉", "🥳", "🎊", "🎈", "🍾", "🥂"];
-        let index = Math.floor(Math.random() * possible.length);
-        return possible[index];
-    }
-
     function numberToSquare(number) {
-        switch (number) {
-            case 0: {
-                return "⬛";
-            }
-            case 1: {
-                return "🟨";
-            }
-            case 2: {
-                return "🟩";
-            }
-            default: {
-                return randomPartyEmoji();
-            }
-        }
+        return number === 0 ? "⬛" : number === 1 ? "🟨" : number === 2 ? "🟩" : "⬜";
     }
-
     function generateSummary() {
-        let out = "";
-        for (let i = 0; i < statuses.length; i++) {
-            let line = "";
-            for (let j = 0; j < statuses[i].length; j++) {
-                line = line + numberToSquare(statuses[i][j]);
-            }
-            for (let j = 0; j < chessStatuses[i].length; j++) {
-                line = line + numberToSquare(chessStatuses[i][j]);
-            }
-            out += line + "\n";
+        return statuses.filter((status) => status.some((value) => value >= 0)).map((status) => status.map(numberToSquare).join("")).join("\n");
+    }
+    $: solved = statuses.some((status) => status.every((value) => value === 2));
+    $: shareMessage = `CHORTLE BETA #${String(day).padStart(4, "0")} ${solved ? `${attempts}/5` : "X/5"}\n\n${gameSummary}`;
+
+    async function copyResult() {
+        try {
+            await navigator.clipboard.writeText(shareMessage);
+            copied = true;
+        } catch {
+            copied = false;
         }
-        return out;
     }
 </script>
 
 <Modal show={gameOverValue}>
-    <h1>Game Over</h1>
-    <h4>The answer was {word} and {move}</h4>
-    <p class="summary">{gameSummary}</p>
-    <button use:copy={shareMessage + gameSummary}>Share</button>
+    <p class="eyebrow">Puzzle {String(day).padStart(4, "0")}</p>
+    <h1>{solved ? `Solved in ${attempts}/5` : "Out of attempts"}</h1>
+    <p class="answer">Today’s answer: <strong>{word}</strong></p>
+    <p class="summary" aria-label="Result grid">{gameSummary}</p>
+    <button type="button" on:click={copyResult}>{copied ? "Copied" : "Copy result"}</button>
 </Modal>
 
 <style>
-    .summary {
-        white-space: pre;
-    }
+    h1 { margin: 0.25rem 0 0.6rem; font: 700 clamp(2rem, 8vw, 2.5rem)/1 var(--display); letter-spacing: -0.02em; }
+    p { color: var(--muted); }
+    .eyebrow { margin: 0; color: var(--accent); font: 700 0.72rem/1 var(--mono); letter-spacing: 0.1em; text-transform: uppercase; }
+    .answer { margin: 0 0 1rem; }
+    .answer strong { color: var(--text); letter-spacing: 0.08em; }
+    .summary { margin: 0 0 1.1rem; padding: 0.7rem 0; border-block: 1px solid var(--line); white-space: pre; color: var(--text); font-size: 1.05rem; letter-spacing: 0.05em; }
 </style>
