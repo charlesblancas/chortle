@@ -9,7 +9,16 @@
     $: if (show && !wasShown) {
         wasShown = true;
         priorFocus = document.activeElement;
-        tick().then(() => dialog?.querySelector("button, [href], input, select, textarea, [tabindex]:not([tabindex='-1'])")?.focus());
+        // On desktop, keep focus on the dialog itself. Focusing the first
+        // button meant the Enter key that submitted the final guess could be
+        // interpreted as activating “Copy result”, making it look like the
+        // result was copied automatically. Touch devices retain the original
+        // first-action focus behavior.
+        tick().then(() => {
+            const touchDevice = typeof navigator !== "undefined" && navigator.maxTouchPoints > 0;
+            const firstAction = dialog?.querySelector("button, [href], input, select, textarea, [tabindex]:not([tabindex='-1'])");
+            (touchDevice ? firstAction : dialog)?.focus();
+        });
     } else if (!show && wasShown) {
         wasShown = false;
         priorFocus?.focus?.();
