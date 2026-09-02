@@ -21,6 +21,7 @@
     let selectedSquare = "";
     let engineThinking = false;
     $: orientation = fen.split(" ")[1] === "w" ? "black" : "white";
+    $: playerColor = orientation;
     $: files = orientation === "white" ? "ABCDEFGH".split("") : "HGFEDCBA".split("");
     $: ranks = orientation === "white" ? [8, 7, 6, 5, 4, 3, 2, 1] : [1, 2, 3, 4, 5, 6, 7, 8];
     $: highlightIndex = files.indexOf(highlightFile);
@@ -44,7 +45,14 @@
         }
     }
     function setup() {
-        chessground.set({ fen: chess.fen(), movable: { enabled: !disabled && !engineThinking, color: chess.turn() === "w" ? "white" : "black", dests: destinations(), free: false }, turnColor: chess.turn() === "w" ? "white" : "black", viewOnly: disabled || engineThinking });
+        const turnColor = chess.turn() === "w" ? "white" : "black";
+        const playerTurn = turnColor === playerColor;
+        chessground.set({
+            fen: chess.fen(),
+            movable: { enabled: !disabled && !engineThinking && playerTurn, color: playerColor, dests: destinations(), free: false },
+            turnColor,
+            viewOnly: disabled || engineThinking || !playerTurn,
+        });
     }
     function rebuild() {
         if (!chessground) return;
