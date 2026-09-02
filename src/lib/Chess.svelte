@@ -84,19 +84,30 @@
         setup();
         dispatch("thinking", { active: true });
         await new Promise((resolve) => requestAnimationFrame(resolve));
-        if (!moveCorrect) {
-            try {
-                reply = await sunfishReply(chess.fen(), 2);
-            } catch {
-                reply = chooseReply(chess);
+        try {
+            if (!moveCorrect) {
+                try {
+                    reply = await sunfishReply(chess.fen(), 2);
+                } catch {
+                    reply = chooseReply(chess);
+                }
             }
+            // Never unlock the board until the reply has actually been
+            // applied. A malformed or stale engine response must not leave
+            // the side-to-move on the opponent, which looks like the player
+            // can move black pieces next.
+            const replyApplied = reply ? apply(reply) : false;
+            if (!moveCorrect && !replyApplied) {
+                reply = chooseReply(chess);
+                if (reply) apply(reply);
+            }
+            const matedAfterReply = isPlayerMatedAfterReply(chess, playerColor, reply);
+            dispatch("resolve", { index: actionIndex, reply, mated: matedAfterReply });
+        } finally {
+            engineThinking = false;
+            dispatch("thinking", { active: false });
+            setup();
         }
-        engineThinking = false;
-        dispatch("thinking", { active: false });
-        if (reply) apply(reply);
-        const matedAfterReply = isPlayerMatedAfterReply(chess, playerColor, reply);
-        setup();
-        dispatch("resolve", { index: actionIndex, reply, mated: matedAfterReply });
     }
     function showFile(event) {
         if (!event.clientX || !event.clientY) return;
