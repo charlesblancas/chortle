@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "chess.js": "^1.0.0-beta.7",
+    "js-chess-engine": "^2.4.6",
     "svelte-chessground": "^2.0.3",
     "svelte-copy": "^1.4.1"
   }

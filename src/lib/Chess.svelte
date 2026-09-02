@@ -3,8 +3,7 @@
     import { Chess, SQUARES } from "chess.js";
     import { Chessground } from "svelte-chessground";
     import { isPlayerMatedAfterReply } from "../gameRules";
-    import { chooseReply, isUciMove } from "./tinyEngine";
-    import { sunfishReply, warmSunfish } from "./sunfishEngine";
+    import { fastChessReply, isUciMove } from "./fastChessEngine";
 
     export let fen;
     export let movesString;
@@ -95,9 +94,9 @@
         try {
             if (!moveCorrect) {
                 try {
-                    reply = await sunfishReply(chess.fen(), 2);
+                    reply = fastChessReply(chess.fen());
                 } catch {
-                    reply = chooseReply(chess);
+                    reply = "";
                 }
             }
             // Never unlock the board until the reply has actually been
@@ -106,8 +105,10 @@
             // can move black pieces next.
             const replyApplied = reply ? apply(reply) : false;
             if (!moveCorrect && !replyApplied) {
-                reply = chooseReply(chess);
-                if (reply) apply(reply);
+                // `fastChessReply` includes a deterministic legal-move safety
+                // path, so a failed search cannot leave the board on the
+                // opponent's turn.
+                reply = fastChessReply(chess.fen());
             }
             const matedAfterReply = isPlayerMatedAfterReply(chess, playerColor, reply);
             dispatch("resolve", { index: actionIndex, reply, mated: matedAfterReply });
@@ -175,7 +176,6 @@
     onMount(() => {
         rebuild();
         last = JSON.stringify(actions);
-        warmSunfish();
     });
 </script>
 
