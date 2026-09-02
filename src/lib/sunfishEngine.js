@@ -1,10 +1,12 @@
 const ENGINE_URL = "/engines/sunfish/sunfish.js";
 const SEARCH_TIMEOUT_MS = 300;
+const READY_TIMEOUT_MS = 1000;
 
 let worker;
 let ready;
 let resolveReady;
 let rejectReady;
+let readyTimer;
 let pendingSearch;
 
 function reset() {
@@ -13,6 +15,8 @@ function reset() {
     ready = undefined;
     resolveReady = undefined;
     rejectReady = undefined;
+    clearTimeout(readyTimer);
+    readyTimer = undefined;
     pendingSearch = undefined;
 }
 
@@ -23,11 +27,18 @@ function ensureWorker() {
     ready = new Promise((resolve, reject) => {
         resolveReady = resolve;
         rejectReady = reject;
+        readyTimer = setTimeout(() => {
+            const error = new Error("Sunfish worker was not ready");
+            reject(error);
+            reset();
+        }, READY_TIMEOUT_MS);
     });
 
     worker.addEventListener("message", (event) => {
         const line = typeof event.data === "string" ? event.data : "";
         if (line === "readyok") {
+            clearTimeout(readyTimer);
+            readyTimer = undefined;
             resolveReady?.();
             return;
         }
