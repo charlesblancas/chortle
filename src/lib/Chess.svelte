@@ -78,23 +78,20 @@
         selectedLetter = "";
         selectedSquare = "";
         dispatch("preview", { letter: "" });
+        const completesLine = moveCorrect && !reply;
         dispatch("move", {
             letter: move.from[0].toUpperCase(),
             uci,
             reply: "",
             moveCorrect,
             mated: false,
-            pending: true,
+            pending: !completesLine,
         });
 
         // Some puzzle lines end on the player's move (day 1649 is one). No
         // engine reply is required in that case, so resolve immediately
         // instead of briefly entering the thinking/locked state.
-        if (moveCorrect && !reply) {
-            dispatch("resolve", { index: actionIndex, reply: "", mated: false });
-            setup();
-            return;
-        }
+        if (completesLine) return;
 
         engineThinking = true;
         setup();
