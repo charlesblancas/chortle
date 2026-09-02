@@ -1,4 +1,5 @@
 const ENGINE_URL = "/engines/sunfish/sunfish.js";
+const SEARCH_TIMEOUT_MS = 300;
 
 let worker;
 let ready;
@@ -32,8 +33,9 @@ function ensureWorker() {
         }
         if (!line.startsWith("bestmove ") || !pendingSearch) return;
         const move = line.split(/\s+/)[1] || "";
-        const { resolve, reject } = pendingSearch;
+        const { resolve, reject, timer } = pendingSearch;
         pendingSearch = undefined;
+        clearTimeout(timer);
         if (/^[a-h][1-8][a-h][1-8][qrbn]?$/.test(move)) resolve(move);
         else reject(new Error("Sunfish returned no legal move"));
     });
@@ -41,6 +43,7 @@ function ensureWorker() {
     worker.addEventListener("error", () => {
         const error = new Error("Sunfish worker failed");
         rejectReady?.(error);
+        if (pendingSearch?.timer) clearTimeout(pendingSearch.timer);
         pendingSearch?.reject(error);
         reset();
     });
@@ -59,7 +62,13 @@ export async function sunfishReply(fen, depth = 2) {
     if (pendingSearch) throw new Error("Sunfish is already searching");
 
     return new Promise((resolve, reject) => {
-        pendingSearch = { resolve, reject };
+        const timer = setTimeout(() => {
+            if (!pendingSearch || pendingSearch.resolve !== resolve) return;
+            pendingSearch = undefined;
+            reset();
+            reject(new Error("Sunfish search timed out"));
+        }, SEARCH_TIMEOUT_MS);
+        pendingSearch = { resolve, reject, timer };
         worker.postMessage("ucinewgame");
         worker.postMessage(`position fen ${fen}`);
         worker.postMessage(`go depth ${depth}`);
