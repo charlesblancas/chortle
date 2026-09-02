@@ -87,10 +87,18 @@
             pending: true,
         });
 
+        // Some puzzle lines end on the player's move (day 1649 is one). No
+        // engine reply is required in that case, so resolve immediately
+        // instead of briefly entering the thinking/locked state.
+        if (moveCorrect && !reply) {
+            dispatch("resolve", { index: actionIndex, reply: "", mated: false });
+            setup();
+            return;
+        }
+
         engineThinking = true;
         setup();
         dispatch("thinking", { active: true });
-        await new Promise((resolve) => requestAnimationFrame(resolve));
         try {
             if (!moveCorrect) {
                 try {
