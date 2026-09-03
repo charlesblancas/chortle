@@ -3,14 +3,18 @@
     import { Chess, SQUARES } from "chess.js";
     import { Chessground } from "svelte-chessground";
     import { isPlayerMatedAfterReply } from "../gameRules";
-    import { applyEngineReply, fastChessReply, isUciMove } from "./fastChessEngine";
+    import { chooseReply, isUciMove } from "./tinyEngine";
+    import { sunfishReply, warmSunfish } from "./sunfishEngine";
 
     export let fen;
     export let movesString;
     export let actions = [];
+    export let pieceSet = "cburnett";
     export let disabled = false;
     export let mated = false;
     export let highlightFile = "";
+    const IMAGE_PIECE_SETS = new Set(["chessnut", "cburnett", "berlin", "leipzig", "alpha", "merida", "maestro", "fantasy", "caliente", "horsey", "pixel", "mono"]);
+    const PIECE_CODES = ["P", "N", "B", "R", "Q", "K"];
     const dispatch = createEventDispatcher();
     const chess = new Chess();
     const line = movesString.split(" ");
@@ -36,6 +40,9 @@
     $: files = orientation === "white" ? "ABCDEFGH".split("") : "HGFEDCBA".split("");
     $: ranks = orientation === "white" ? [8, 7, 6, 5, 4, 3, 2, 1] : [1, 2, 3, 4, 5, 6, 7, 8];
     $: highlightIndex = files.indexOf(highlightFile);
+    $: pieceAssetStyle = IMAGE_PIECE_SETS.has(pieceSet)
+        ? PIECE_CODES.flatMap((code) => [`--piece-w${code}: url('/pieces/${pieceSet}/w${code}.svg')`, `--piece-b${code}: url('/pieces/${pieceSet}/b${code}.svg')`]).join(";")
+        : "";
 
     function destinations() {
         const result = new Map();
@@ -98,7 +105,7 @@
         setup();
         return true;
     }
-    function commitMove(from, to, promotion = "", allowDisabled = false) {
+    async function commitMove(from, to, promotion = "", allowDisabled = false) {
         // The parent intentionally disables normal input while the chooser is
         // open. A selected promotion is the one move that must still be
         // committed before that prop has flushed back down to this component.
@@ -141,7 +148,11 @@
         try {
             if (!moveCorrect) {
                 try {
-                    reply = fastChessReply(chess.fen());
+                    // Sunfish gives stronger tactical replies while running
+                    // off the UI thread. Its deterministic search is seeded
+                    // only by the current position, so the same mistake
+                    // always receives the same response.
+                    reply = await sunfishReply(chess.fen(), 2);
                 } catch {
                     reply = "";
                 }
@@ -152,12 +163,12 @@
             // can move black pieces next.
             let replyApplied = reply ? apply(reply) : false;
             if (!moveCorrect && !replyApplied) {
-                // Apply the safety reply immediately. Merely selecting a
-                // fallback and waiting for the parent to rebuild can leave
-                // this live board on the opponent's turn if the user acts
-                // before Svelte flushes the action update.
-                reply = applyEngineReply(chess, "", fastChessReply);
-                replyApplied = Boolean(reply);
+                // Sunfish can time out or reject an unusual FEN. Fall back to
+                // the small deterministic in-thread engine and apply its move
+                // before resolving, so the board always returns to the player
+                // instead of appearing frozen on the opponent's turn.
+                reply = chooseReply(chess);
+                replyApplied = Boolean(reply && apply(reply));
             }
             const matedAfterReply = isPlayerMatedAfterReply(chess, playerColor, reply);
             dispatch("resolve", { index: actionIndex, reply, mated: matedAfterReply });
@@ -263,13 +274,14 @@
     onMount(() => {
         rebuild();
         last = JSON.stringify(actions);
+        warmSunfish();
     });
 </script>
 
 <section class="chess" aria-label="Chess board. Use a mouse or touch to make A to H moves.">
     <div class="board-grid">
         <div class="rank-labels" aria-hidden="true">{#each ranks as rank}<span>{rank}</span>{/each}</div>
-        <div class="board" use:fileHint>
+        <div class="board" class:piece-set-glyph={pieceSet === "glyph"} class:piece-set-image={IMAGE_PIECE_SETS.has(pieceSet)} class:piece-set-cburnett={pieceSet === "cburnett"} style={pieceAssetStyle} use:fileHint>
             {#if highlightIndex >= 0}<div class="file-highlight" style={`left: ${highlightIndex * 12.5}%`}></div>{/if}
             <Chessground bind:this={chessground} coordinates={false} config={{ movable: { events: { after } } }} />
             {#if mated}<div class="mate-banner" role="status">You are mated.</div>{/if}
@@ -281,7 +293,13 @@
                         <div class="promotion-options">
                             {#each promotionChoices as choice, index}
                                 <button type="button" class="promotion-choice" aria-label={`Promote to ${choice.label}`} use:focusPromotionButton={index === 0} on:click|stopPropagation={() => choosePromotion(choice.role)}>
-                                    <span class="promotion-piece" aria-hidden="true">{choice.symbol}</span>
+                                    {#if pieceSet === "glyph"}
+                                        <span class="promotion-piece" aria-hidden="true">{choice.symbol}</span>
+                                    {:else if pieceSet === "cburnett"}
+                                        <span class="promotion-piece promotion-piece-image" aria-hidden="true"><img src={`/pieces/cburnett/${promotionPending.color === "b" ? "b" : "w"}${choice.shortLabel}.svg`} alt="" /></span>
+                                    {:else}
+                                        <span class="promotion-piece promotion-piece-image" aria-hidden="true"><img src={`/pieces/${pieceSet}/${promotionPending.color === "b" ? "b" : "w"}${choice.shortLabel}.svg`} alt="" /></span>
+                                    {/if}
                                     <span class="promotion-label" aria-hidden="true">{choice.shortLabel}</span>
                                 </button>
                             {/each}
@@ -300,7 +318,7 @@
 <style>
     .chess { width: min(100%, 32rem); margin: 1.75rem auto 0; }
     .board-grid { position: relative; display: block; padding-bottom: 1.55rem; }
-    .board { position: relative; width: 100%; aspect-ratio: 1; overflow: hidden; background: #e9e5db; }
+    .board { position: relative; width: 100%; aspect-ratio: 1; overflow: hidden; background: #e9e5db; container-type: inline-size; }
     .file-highlight { position: absolute; z-index: 2; top: 0; bottom: 0; width: 12.5%; pointer-events: none; background: rgba(112, 45, 49, 0.1); box-shadow: inset 0 0 0 2px rgba(112, 45, 49, 0.55); }
     .mate-banner { position: absolute; z-index: 4; top: 50%; left: 50%; width: min(82%, 18rem); box-sizing: border-box; transform: translate(-50%, -50%); padding: 1rem 0.8rem; background: rgba(239, 236, 226, 0.9); border-block: 2px solid var(--burgundy); color: var(--burgundy); text-align: center; font: 700 1.05rem/1.1 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; pointer-events: none; }
     .promotion-layer { position: absolute; z-index: 6; inset: 0; display: grid; place-items: center; padding: 0.7rem; background: rgba(38, 50, 56, 0.34); }
@@ -309,7 +327,8 @@
     .promotion-move { margin: 0.35rem 0 0.7rem; color: var(--muted); font: 700 0.68rem/1 var(--mono); letter-spacing: 0.08em; }
     .promotion-options { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.3rem; }
     .promotion-choice { display: flex; min-width: 0; min-height: 4.1rem; flex-direction: column; align-items: center; justify-content: center; gap: 0.18rem; padding: 0.25rem 0.1rem; border-color: var(--line); background: var(--main); text-transform: none; }
-    .promotion-piece { font: 2rem/0.95 Georgia, "Times New Roman", serif; }
+    .promotion-piece { display: grid; width: 2.35rem; height: 2.35rem; place-items: center; font: 2rem/0.95 Georgia, "Times New Roman", serif; }
+    .promotion-piece-image img { width: 100%; height: 100%; object-fit: contain; }
     .promotion-label { font: 700 0.58rem/1 var(--mono); letter-spacing: 0.08em; }
     .promotion-cancel { margin-top: 0.55rem; padding: 0.25rem 0.45rem; border-color: transparent; color: var(--muted); font-size: 0.62rem; text-transform: none; text-decoration: underline; }
     @media (hover: hover) {
@@ -332,6 +351,39 @@
     }
     .board :global(cg-board square.move-dest:hover) { background-color: rgba(112, 45, 49, 0.12) !important; }
     .board :global(.cg-wrap piece) { opacity: 0.96; background-position: center !important; background-repeat: no-repeat !important; background-size: 92% !important; }
+    /* Use the same typographic pieces in the chooser and on the board. This
+       keeps the set visually coherent and avoids a second, unrelated sprite
+       style for regular play. */
+    .board.piece-set-glyph :global(.cg-wrap piece) { display: grid; place-items: center; background-image: none !important; color: var(--ink); font: 400 3rem/1 Georgia, "Times New Roman", serif; font-size: 12cqw; }
+    .board.piece-set-glyph :global(.cg-wrap piece::before) { display: block; line-height: 1; }
+    .board.piece-set-glyph :global(.cg-wrap piece.king.white::before) { content: "♔"; }
+    .board.piece-set-glyph :global(.cg-wrap piece.queen.white::before) { content: "♕"; }
+    .board.piece-set-glyph :global(.cg-wrap piece.rook.white::before) { content: "♖"; }
+    .board.piece-set-glyph :global(.cg-wrap piece.bishop.white::before) { content: "♗"; }
+    .board.piece-set-glyph :global(.cg-wrap piece.knight.white::before) { content: "♘"; }
+    .board.piece-set-glyph :global(.cg-wrap piece.pawn.white::before) { content: "♙"; }
+    .board.piece-set-glyph :global(.cg-wrap piece.king.black::before) { content: "♚"; }
+    .board.piece-set-glyph :global(.cg-wrap piece.queen.black::before) { content: "♛"; }
+    .board.piece-set-glyph :global(.cg-wrap piece.rook.black::before) { content: "♜"; }
+    .board.piece-set-glyph :global(.cg-wrap piece.bishop.black::before) { content: "♝"; }
+    .board.piece-set-glyph :global(.cg-wrap piece.knight.black::before) { content: "♞"; }
+    .board.piece-set-glyph :global(.cg-wrap piece.pawn.black::before) { content: "♟"; }
+    .board.piece-set-image :global(.cg-wrap piece.pawn.white) { background-image: var(--piece-wP) !important; }
+    .board.piece-set-image :global(.cg-wrap piece.knight.white) { background-image: var(--piece-wN) !important; }
+    .board.piece-set-image :global(.cg-wrap piece.bishop.white) { background-image: var(--piece-wB) !important; }
+    .board.piece-set-image :global(.cg-wrap piece.rook.white) { background-image: var(--piece-wR) !important; }
+    .board.piece-set-image :global(.cg-wrap piece.queen.white) { background-image: var(--piece-wQ) !important; }
+    .board.piece-set-image :global(.cg-wrap piece.king.white) { background-image: var(--piece-wK) !important; }
+    .board.piece-set-image :global(.cg-wrap piece.pawn.black) { background-image: var(--piece-bP) !important; }
+    .board.piece-set-image :global(.cg-wrap piece.knight.black) { background-image: var(--piece-bN) !important; }
+    .board.piece-set-image :global(.cg-wrap piece.bishop.black) { background-image: var(--piece-bB) !important; }
+    .board.piece-set-image :global(.cg-wrap piece.rook.black) { background-image: var(--piece-bR) !important; }
+    .board.piece-set-image :global(.cg-wrap piece.queen.black) { background-image: var(--piece-bQ) !important; }
+    .board.piece-set-image :global(.cg-wrap piece.king.black) { background-image: var(--piece-bK) !important; }
+    /* Keep the Cburnett class explicit so switching away from glyphs never
+       leaves a pseudo-element behind; its exact SVGs are supplied locally. */
+    .board.piece-set-cburnett :global(.cg-wrap piece) { display: block; color: transparent; }
+    .board.piece-set-cburnett :global(.cg-wrap piece::before) { content: none; display: none; }
     @media (max-width: 420px) {
         .chess { width: min(100%, 18.5rem); margin-top: 0.35rem; }
         .board-grid { width: calc(100% - 3.3rem); margin-inline: auto; }

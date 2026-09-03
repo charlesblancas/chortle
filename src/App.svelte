@@ -6,9 +6,18 @@
 
     const fixture = import.meta.env.DEV ? fixtureById(new URLSearchParams(window.location.search).get("fixture")) : null;
     const dayOverride = import.meta.env.DEV ? Number(new URLSearchParams(window.location.search).get("day")) : NaN;
+    const PIECE_SET_KEY = "chortle:piece-set-v2";
+    const PIECE_SETS = new Set(["glyph", "chessnut", "cburnett", "berlin", "leipzig", "alpha", "merida", "maestro", "fantasy", "caliente", "horsey", "pixel", "mono"]);
+    const savedPieceSet = localStorage.getItem(PIECE_SET_KEY);
+    let pieceSet = PIECE_SETS.has(savedPieceSet) ? savedPieceSet : "cburnett";
 
     function toggleInstructions() {
         showInstructions.update((visible) => !visible);
+    }
+
+    function selectPieceSet(event) {
+        pieceSet = event.detail;
+        localStorage.setItem(PIECE_SET_KEY, pieceSet);
     }
 </script>
 
@@ -18,8 +27,8 @@
         <h1 class="title">Chortle <span class="beta">Beta</span></h1>
         <button class="help" type="button" aria-label={$showInstructions ? "Close instructions" : "Show instructions"} title={$showInstructions ? "Close instructions" : "Show instructions"} on:click={(event) => { toggleInstructions(); event.currentTarget.blur(); }}>?</button>
     </header>
-    {#if import.meta.env.DEV}<DebugFixtures selected={fixture?.id || ""} />{/if}
-    <WordGame {fixture} {dayOverride} />
+    {#if import.meta.env.DEV}<DebugFixtures selected={fixture?.id || ""} {pieceSet} on:pieceSet={selectPieceSet} />{/if}
+    <WordGame {fixture} {dayOverride} {pieceSet} />
 </main>
 
 <style>

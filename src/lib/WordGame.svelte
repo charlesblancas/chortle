@@ -15,6 +15,7 @@
     const FILE_LETTERS = "ABCDEFGH";
     export let fixture = null;
     export let dayOverride = NaN;
+    export let pieceSet = "cburnett";
     const ROWS = 5;
     let guesses = Array(ROWS).fill("");
     if (fixture?.initialGuess) guesses[0] = fixture.initialGuess.toUpperCase();
@@ -175,7 +176,7 @@
         <Guess status={statuses[index]} word={guess} active={index === currentRow} compact={index !== currentRow} previewLetter={index === currentRow ? previewLetter : ""} />
     {/each}
 </div>
-<Chess fen={game.fen} movesString={game.moves} {actions} {mated} disabled={mated || engineThinking || promotionPending || guesses[currentRow].length >= 5} {highlightFile} on:move={chessLetter} on:resolve={resolveChessMove} on:thinking={(event) => engineThinking = event.detail.active} on:promotion={handlePromotion} on:preview={(event) => previewLetter = event.detail.letter} />
+<Chess fen={game.fen} movesString={game.moves} {actions} {mated} {pieceSet} disabled={mated || engineThinking || promotionPending || guesses[currentRow].length >= 5} {highlightFile} on:move={chessLetter} on:resolve={resolveChessMove} on:thinking={(event) => engineThinking = event.detail.active} on:promotion={handlePromotion} on:preview={(event) => previewLetter = event.detail.letter} />
 {#if guesses[currentRow].length >= 5 && !$gameOver}<p class="row-ready">Row complete · press Enter to submit or Backspace to revise.</p>{/if}
 <p class="rule">A–H are played from the board.</p>
 <Keyboard {keyStatuses} on:key={(event) => input(event.detail.key)} />
