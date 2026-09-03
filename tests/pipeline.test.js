@@ -8,6 +8,7 @@ import { FIXTURES } from "../src/fixtures.js";
 import { games } from "../src/games/final_games.js";
 import { fileProjection, isMated, isPlayerMatedAfterReply, scoreWord, validatePuzzleRecord } from "../src/gameRules.js";
 import { chooseReply, isUciMove } from "../src/lib/tinyEngine.js";
+import { applyEngineReply, fastChessReply } from "../src/lib/fastChessEngine.js";
 import { gameStorageKey, normalizeSavedGame, readSavedGame, writeSavedGame } from "../src/lib/gameStorage.js";
 
 const mixed = FIXTURES.find((fixture) => fixture.id === "mixed-entry");
@@ -58,6 +59,16 @@ test("mated fixture is recognized as terminal", () => {
     assert.equal(fixture.initialActions.at(-1).mated, true);
 });
 
+test("promotion fixture has a legal player promotion move", () => {
+    const fixture = FIXTURES.find((item) => item.id === "promotion-state");
+    const position = new Chess(fixture.game.fen);
+    const [reply, promotion] = fixture.game.moves.split(" ");
+    assert.ok(position.move({ from: reply.slice(0, 2), to: reply.slice(2, 4) }));
+    assert.ok(position.move({ from: promotion.slice(0, 2), to: promotion.slice(2, 4), promotion: promotion[4] }));
+    assert.equal(position.get("a8").type, "q");
+    assert.deepEqual(validatePuzzleRecord(fixture.game), []);
+});
+
 test("a malformed projection is rejected by the pipeline", () => {
     const errors = validatePuzzleRecord({ ...mixed.game, word: "apple" });
     assert.ok(errors.some((error) => error.includes("projection")));
@@ -72,6 +83,40 @@ test("only real UCI moves are accepted from the engine", () => {
     assert.equal(isUciMove("a7a8q"), true);
     assert.equal(isUciMove("(none)"), false);
     assert.equal(isUciMove(""), false);
+});
+
+test("day 1649 can finish with h7 after an off-line Kc3 move", () => {
+    const game = games[4];
+    assert.equal(game.word, "blush");
+    const line = game.moves.split(" ");
+    const chess = new Chess(game.fen);
+
+    // The first token is the puzzle's automatic setup move. Kc3 is a legal
+    // but off-line player move, so the engine must reply before H is played.
+    chess.move({ from: line[0].slice(0, 2), to: line[0].slice(2, 4) });
+    assert.ok(chess.move({ from: "d4", to: "c3" }));
+    const reply = fastChessReply(chess.fen());
+    assert.equal(reply, "e6d7");
+    assert.equal(applyEngineReply(chess, reply), reply);
+
+    const terminal = chess.move({ from: "h6", to: "h7" });
+    assert.equal(terminal?.lan, line[3]);
+    assert.equal(line[4], undefined, "h7 is the only canonical player move at the end of this line");
+    // The canonical UCI is not enough after Kc3: the position has already
+    // diverged, so h7 must use the engine path rather than ending silently.
+    const h7MoveCorrect = [{ moveCorrect: false }].every((action) => action.moveCorrect !== false) && terminal.lan === line[3];
+    assert.equal(h7MoveCorrect, false);
+    const h7Reply = applyEngineReply(chess, "", fastChessReply);
+    assert.equal(h7Reply, "e4h7");
+    assert.equal(chess.turn(), "w", "the engine reply returns the board to the player");
+    assert.equal(chess.isCheckmate(), false);
+});
+
+test("an engine fallback is applied before the reply is reported", () => {
+    const chess = new Chess("8/5p2/4k2P/3p4/4b3/1BK1P3/8/8 b - - 3 62");
+    const reply = applyEngineReply(chess, "not-a-move", () => "e6d7");
+    assert.equal(reply, "e6d7");
+    assert.equal(chess.fen(), "8/3k1p2/7P/3p4/4b3/1BK1P3/8/8 w - - 4 63");
 });
 
 test("the tiny engine is deterministic, legal, and finds immediate mate", () => {

@@ -40,6 +40,17 @@ export const FIXTURES = [
         mated: true,
         instructions: "The line is preloaded through Qh4 mate. Backspace should undo G and reopen the board so you can play another move.",
     },
+    {
+        id: "promotion-state",
+        label: "Promotion chooser",
+        description: "Move the white pawn from the A-file to the last rank and choose a promoted piece.",
+        game: {
+            fen: "7k/P7/8/8/8/8/7K/8 b - - 0 1",
+            moves: "h8h7 a7a8q",
+            word: "apply",
+        },
+        instructions: "Move the A-file pawn to a8. The piece chooser should appear on the board; choose a piece or cancel the move.",
+    },
 ];
 
 export function fixtureById(id) {

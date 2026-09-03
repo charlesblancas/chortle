@@ -27,3 +27,33 @@ export function fastChessReply(fen) {
     const safe = from && to ? `${from.toLowerCase()}${to.toLowerCase()}` : "";
     return isUciMove(safe) ? safe : "";
 }
+
+/**
+ * Apply a candidate reply, recovering with a deterministic legal move when
+ * the candidate is missing or malformed. The returned UCI move is the move
+ * actually applied to `chess`, or an empty string when the side to move has
+ * no legal move.
+ *
+ * Keeping the fallback application beside the fallback selection is
+ * important: returning a fallback without applying it leaves the live board
+ * on the opponent's turn and can make the UI look frozen.
+ */
+export function applyEngineReply(chess, candidate, fallback = fastChessReply) {
+    const apply = (uci) => {
+        if (!isUciMove(uci)) return false;
+        try {
+            return Boolean(chess.move({ from: uci.slice(0, 2), to: uci.slice(2, 4), promotion: uci[4] }));
+        } catch {
+            return false;
+        }
+    };
+
+    if (apply(candidate)) return candidate;
+
+    try {
+        const replacement = fallback(chess.fen());
+        return apply(replacement) ? replacement : "";
+    } catch {
+        return "";
+    }
+}

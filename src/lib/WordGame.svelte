@@ -35,6 +35,7 @@
     $: game = fixture?.game || dailyGame;
     $: answer = game.word.toUpperCase();
     let mated = fixture?.mated || false;
+    let promotionPending = false;
     let hydrated = false;
     const dateLabel = new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "long", year: "numeric" }).format(new Date());
     $: storageKey = gameStorageKey(selectedDay, game);
@@ -78,7 +79,7 @@
     }
 
     function input(key) {
-        if ($showInstructions || $gameOver || engineThinking) return;
+        if ($showInstructions || $gameOver || engineThinking || promotionPending) return;
         clearGuidance();
         previewLetter = "";
         if (/^[A-Za-z]$/.test(key)) {
@@ -95,7 +96,7 @@
     }
 
     function handleWindowKeydown(event) {
-        if ($showInstructions || $gameOver) {
+        if ($showInstructions || $gameOver || promotionPending) {
             event.preventDefault();
             return;
         }
@@ -120,6 +121,10 @@
             : item);
         mated = event.detail.mated || false;
         saveGame();
+    }
+
+    function handlePromotion(event) {
+        promotionPending = event.detail.active;
     }
 
     function undo() {
@@ -170,7 +175,7 @@
         <Guess status={statuses[index]} word={guess} active={index === currentRow} compact={index !== currentRow} previewLetter={index === currentRow ? previewLetter : ""} />
     {/each}
 </div>
-<Chess fen={game.fen} movesString={game.moves} {actions} {mated} disabled={mated || engineThinking || guesses[currentRow].length >= 5} {highlightFile} on:move={chessLetter} on:resolve={resolveChessMove} on:thinking={(event) => engineThinking = event.detail.active} on:preview={(event) => previewLetter = event.detail.letter} />
+<Chess fen={game.fen} movesString={game.moves} {actions} {mated} disabled={mated || engineThinking || promotionPending || guesses[currentRow].length >= 5} {highlightFile} on:move={chessLetter} on:resolve={resolveChessMove} on:thinking={(event) => engineThinking = event.detail.active} on:promotion={handlePromotion} on:preview={(event) => previewLetter = event.detail.letter} />
 {#if guesses[currentRow].length >= 5 && !$gameOver}<p class="row-ready">Row complete · press Enter to submit or Backspace to revise.</p>{/if}
 <p class="rule">A–H are played from the board.</p>
 <Keyboard {keyStatuses} on:key={(event) => input(event.detail.key)} />
