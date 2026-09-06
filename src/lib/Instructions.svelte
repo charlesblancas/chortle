@@ -37,7 +37,6 @@
         <span class="swatch yellow">Yellow <small>elsewhere in the word or chess line</small></span>
         <span class="swatch gray">Gray <small>not in the word or chess line</small></span>
     </div>
-    <p class="share-note">Shared grids combine both halves: green is all right, yellow is mixed, gray is all wrong.</p>
     <button on:click={closeInstructions}>Understood</button>
 </Modal>
 
@@ -53,7 +52,6 @@
     .swatch.green { background: var(--green); color: var(--panel); }
     .swatch.yellow { background: var(--yellow); color: var(--ink); }
     .swatch.gray { background: var(--gray); color: var(--panel); }
-    .share-note { margin: -0.72rem 0 1.15rem; color: var(--muted); font-size: 0.82rem; line-height: 1.25; }
     .close { position: absolute; top: 0.65rem; right: 0.7rem; min-width: 0; width: 1.6rem; height: 1.6rem; padding: 0; border: 0; color: var(--muted); font: 400 1.45rem/1 var(--sans); }
     .close:hover { color: var(--burgundy); background: transparent; border-color: transparent; }
     @media (max-width: 420px) {
@@ -64,6 +62,5 @@
         .legend { gap: 0.2rem; margin-bottom: 0.85rem; }
         .swatch { padding: 0.28rem 0.38rem; }
         .swatch small { margin-top: 0.05rem; }
-        .share-note { margin: -0.45rem 0 0.75rem; font-size: 0.76rem; }
     }
 </style>
