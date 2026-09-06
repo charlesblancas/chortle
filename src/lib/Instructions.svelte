@@ -30,12 +30,19 @@
         <li>Type any letter outside A–H.</li>
         <li>For A–H, move a piece from that file.</li>
         <li>Backspace removes your latest letter and move.</li>
-        <li>The letter is on top. For A–H, move feedback is underneath.</li>
+        <li>Letter feedback is on top. For A–H, chess-move feedback is underneath.</li>
     </ol>
     <div class="legend" aria-label="Color key">
         <span class="swatch green">Green <small>correct here</small></span>
         <span class="swatch yellow">Yellow <small>elsewhere in the word or chess line</small></span>
         <span class="swatch gray">Gray <small>not in the word or chess line</small></span>
+    </div>
+    <div class="example" aria-label="Example tile: correct letter with a chess move from elsewhere in the line">
+        <div class="example-tile" aria-hidden="true">
+            <span class="example-letter">F</span>
+            <span class="example-move">F3→F6</span>
+        </div>
+        <p>Right letter; move belongs elsewhere in the chess line.</p>
     </div>
     <button on:click={closeInstructions}>Understood</button>
 </Modal>
@@ -52,6 +59,11 @@
     .swatch.green { background: var(--green); color: var(--panel); }
     .swatch.yellow { background: var(--yellow); color: var(--ink); }
     .swatch.gray { background: var(--gray); color: var(--panel); }
+    .example { display: flex; align-items: center; gap: 0.55rem; margin: -0.72rem 0 1.15rem; color: var(--muted); font-size: 0.82rem; line-height: 1.25; }
+    .example p { margin: 0; }
+    .example-tile { width: 2.75rem; height: 2.75rem; flex: 0 0 auto; overflow: hidden; border: 1px solid var(--ink); display: grid; grid-template-rows: minmax(0, 1fr) minmax(0, 0.42fr); text-align: center; }
+    .example-letter { display: grid; place-items: center; background: var(--green); color: var(--panel); font: 700 1.25rem/1 var(--sans); }
+    .example-move { display: grid; place-items: center; background: var(--yellow); color: var(--ink); font: 700 0.42rem/1 var(--mono); white-space: nowrap; }
     .close { position: absolute; top: 0.65rem; right: 0.7rem; min-width: 0; width: 1.6rem; height: 1.6rem; padding: 0; border: 0; color: var(--muted); font: 400 1.45rem/1 var(--sans); }
     .close:hover { color: var(--burgundy); background: transparent; border-color: transparent; }
     @media (max-width: 420px) {
@@ -62,5 +74,7 @@
         .legend { gap: 0.2rem; margin-bottom: 0.85rem; }
         .swatch { padding: 0.28rem 0.38rem; }
         .swatch small { margin-top: 0.05rem; }
+        .example { margin: -0.45rem 0 0.75rem; font-size: 0.76rem; }
+        .example-tile { width: 2.35rem; height: 2.35rem; }
     }
 </style>
