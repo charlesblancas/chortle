@@ -30,7 +30,7 @@
         <li>Type any letter outside A–H.</li>
         <li>For A–H, move a piece from that file.</li>
         <li>Backspace removes your latest letter and move.</li>
-        <li>Top grades the word; the lower strip grades an A–H move.</li>
+        <li>The letter is on top. For A–H, move feedback is underneath.</li>
     </ol>
     <div class="legend" aria-label="Color key">
         <span class="swatch green">Green <small>correct here</small></span>
