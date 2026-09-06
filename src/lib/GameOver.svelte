@@ -21,7 +21,7 @@
         return statuses.filter((status) => status.some((value) => value >= 0)).map((status) => status.map(numberToSquare).join("")).join("\n");
     }
     $: solved = statuses.some((status) => status.every((value) => value === 2));
-    $: shareMessage = `CHORTLE BETA #${String(day).padStart(4, "0")} ${solved ? `${attempts}/5` : "X/5"}\n\n${gameSummary}`;
+    $: shareMessage = `CHORTLE BETA #${String(day).padStart(4, "0")} ${solved ? `${attempts}/5` : "X/5"}\n\n${gameSummary}\n\nhttps://chortle.charlesblancas.com/?day=${day}`;
 
     async function copyResult() {
         try {
