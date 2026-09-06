@@ -178,7 +178,7 @@
 <GameError {message} />
 <Instructions />
 <div class="meta"><span>Puzzle {String(selectedDay).padStart(4, "0")}</span><span>{dateLabel}</span><span>Attempt {currentRow + 1}/{ROWS}</span></div>
-<GameOver word={answer} {statuses} {solved} day={selectedDay} attempts={currentRow + 1} on:reset={resetDebugGame} />
+<GameOver word={answer} {statuses} {guesses} {actionHistory} {solutionMoves} {solved} day={selectedDay} attempts={currentRow + 1} on:reset={resetDebugGame} />
 <div class="guesses">
     {#each guesses as guess, index}
         <Guess status={statuses[index]} word={guess} active={index === currentRow} previewLetter={index === currentRow ? previewLetter : ""} actions={index === currentRow ? actions : actionHistory[index]} {solutionMoves} />

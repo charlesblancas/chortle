@@ -36,6 +36,37 @@ export function chessMoveStatus(action, letterStatus, solutionMoves = []) {
     return solutionMoves.includes(action.uci) ? 1 : 0;
 }
 
+/**
+ * Collapse a tile's word and chess feedback into one shareable status.
+ * A tile is green only when every applicable signal is green, gray only when
+ * every signal is gray, and yellow for every partial or mixed result.
+ */
+export function combineFeedbackStatuses(statuses) {
+    const scored = statuses.filter((status) => Number.isInteger(status) && status >= 0);
+    if (scored.every((status) => status === 2)) return 2;
+    if (scored.every((status) => status === 0)) return 0;
+    return 1;
+}
+
+/**
+ * Produce the compact, spoiler-free result row used in copied shares. Chess
+ * moves contribute only their color; neither UCI move nor piece is exposed.
+ */
+export function scoreShareRow(word, letterStatuses, actions = [], solutionMoves = []) {
+    let actionIndex = 0;
+    return Array.from({ length: 5 }, (_, index) => {
+        const letterStatus = letterStatuses[index];
+        const feedback = [letterStatus];
+        if (FILE_LETTERS.includes(word[index] || "")) {
+            const action = actions[actionIndex++];
+            // A required board action that was never made is incomplete, not
+            // secretly correct simply because its letter was typed correctly.
+            feedback.push(action ? chessMoveStatus(action, letterStatus, solutionMoves) : 0);
+        }
+        return combineFeedbackStatuses(feedback);
+    });
+}
+
 /** A solved row needs the exact word and its complete correct chess sequence. */
 export function isSolvedGuess(letterStatuses, word, actions = []) {
     const requiredMoves = [...word].filter((letter) => FILE_LETTERS.includes(letter.toUpperCase())).length;

@@ -6,7 +6,7 @@ import { performance } from "node:perf_hooks";
 import { Chess } from "chess.js";
 import { FIXTURES } from "../src/fixtures.js";
 import { games } from "../src/games/final_games.js";
-import { chessMoveStatus, fileProjection, isCanonicalPlayerMove, isMated, isPlayerMatedAfterReply, isSolvedGuess, scoreWord, validatePuzzleRecord } from "../src/gameRules.js";
+import { chessMoveStatus, combineFeedbackStatuses, fileProjection, isCanonicalPlayerMove, isMated, isPlayerMatedAfterReply, isSolvedGuess, scoreShareRow, scoreWord, validatePuzzleRecord } from "../src/gameRules.js";
 import { chooseReply, isUciMove } from "../src/lib/tinyEngine.js";
 import { applyEngineReply, fastChessReply } from "../src/lib/fastChessEngine.js";
 import { gameStorageKey, normalizeSavedGame, readSavedGame, writeSavedGame } from "../src/lib/gameStorage.js";
@@ -63,6 +63,25 @@ test("chess feedback is independent from the word color", () => {
     assert.equal(chessMoveStatus({ letter: "B", uci: "b3b4", moveCorrect: false }, 2, ["b3d5"]), 0);
     assert.equal(chessMoveStatus({ letter: "B", uci: "b3d5", moveCorrect: false }, 0, ["b3d5"]), 0);
     assert.equal(chessMoveStatus(null, 0), 0);
+});
+
+test("shared result tiles combine word and chess feedback without exposing moves", () => {
+    assert.equal(combineFeedbackStatuses([2, 2]), 2, "all green stays green");
+    assert.equal(combineFeedbackStatuses([1, 1]), 1, "all yellow stays yellow");
+    assert.equal(combineFeedbackStatuses([0, 0]), 0, "all gray stays gray");
+    assert.equal(combineFeedbackStatuses([2, 0]), 1, "a green/gray split is yellow");
+    assert.equal(combineFeedbackStatuses([1, 0]), 1, "a yellow/gray split is yellow");
+
+    const statuses = [2, 2, 2, 2, 2];
+    const actions = [
+        { letter: "F", uci: "f3f6", moveCorrect: false },
+        { letter: "F", uci: "f7f8q", moveCorrect: false },
+    ];
+    assert.deepEqual(
+        scoreShareRow("FIFTY", statuses, actions, ["f7f8q", "f8f3"]),
+        [1, 2, 1, 2, 2],
+        "only the combined feedback is shared, not the moves themselves"
+    );
 });
 
 test("an exact word only solves with its complete chess sequence", () => {

@@ -2,9 +2,13 @@
     import { createEventDispatcher } from "svelte";
     import Modal from "./Modal.svelte";
     import { gameOver } from "../stores";
+    import { scoreShareRow } from "../gameRules";
 
     export let word;
     export let statuses;
+    export let guesses = [];
+    export let actionHistory = [];
+    export let solutionMoves = [];
     export let solved = false;
     export let day;
     export let attempts;
@@ -21,7 +25,12 @@
         return number === 0 ? "⬛" : number === 1 ? "🟨" : number === 2 ? "🟩" : "⬜";
     }
     function generateSummary() {
-        return statuses.filter((status) => status.some((value) => value >= 0)).map((status) => status.map(numberToSquare).join("")).join("\n");
+        return statuses.map((status, index) => {
+            if (!status.some((value) => value >= 0)) return "";
+            return scoreShareRow(guesses[index] || "", status, actionHistory[index] || [], solutionMoves)
+                .map(numberToSquare)
+                .join("");
+        }).filter(Boolean).join("\n");
     }
     $: shareMessage = `CHORTLE BETA #${String(day).padStart(4, "0")} ${solved ? `${attempts}/5` : "X/5"}\nhttps://chortle.charlesblancas.com\n${gameSummary}`;
 
