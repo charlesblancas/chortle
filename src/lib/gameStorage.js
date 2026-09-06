@@ -35,6 +35,12 @@ export function normalizeSavedGame(value) {
     if (!Number.isInteger(value.currentRow) || value.currentRow < 0 || value.currentRow >= ROWS) return null;
     if (!Array.isArray(value.actions) || !value.actions.every(isAction)) return null;
     if (value.actions.length !== chessLetterCount(value.guesses[value.currentRow])) return null;
+    const actionHistory = value.actionHistory ?? Array.from({ length: ROWS }, () => []);
+    if (!Array.isArray(actionHistory) || actionHistory.length !== ROWS) return null;
+    if (!actionHistory.every((row) => Array.isArray(row) && row.every(isAction))) return null;
+    for (let row = 0; row < ROWS; row++) {
+        if (actionHistory[row].length > chessLetterCount(value.guesses[row])) return null;
+    }
     if (!value.keyStatuses || typeof value.keyStatuses !== "object" || Array.isArray(value.keyStatuses)) return null;
     if (!Object.entries(value.keyStatuses).every(([key, status]) => /^[A-Z]$/.test(key) && VALID_STATUS.has(status))) return null;
     if (typeof value.mated !== "boolean" || typeof value.completed !== "boolean") return null;
@@ -43,6 +49,7 @@ export function normalizeSavedGame(value) {
         statuses: value.statuses.map((row) => [...row]),
         currentRow: value.currentRow,
         actions: value.actions.map((action) => ({ ...action })),
+        actionHistory: actionHistory.map((row) => row.map((action) => ({ ...action }))),
         keyStatuses: { ...value.keyStatuses },
         mated: value.mated,
         completed: value.completed,

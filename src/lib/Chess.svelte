@@ -2,7 +2,7 @@
     import { createEventDispatcher, onMount, tick } from "svelte";
     import { Chess, SQUARES } from "chess.js";
     import { Chessground } from "svelte-chessground";
-    import { isPlayerMatedAfterReply } from "../gameRules";
+    import { isCanonicalPlayerMove, isPlayerMatedAfterReply } from "../gameRules";
     import { chooseReply, isUciMove } from "./tinyEngine";
     import { sunfishReply, warmSunfish } from "./sunfishEngine";
 
@@ -115,19 +115,21 @@
         if (!move) return;
         const uci = `${move.from}${move.to}${move.promotion || ""}`;
         const actionIndex = actions.length;
-        const expected = line[1 + actionIndex * 2];
         // Once a player leaves the puzzle line, the position has diverged even
         // if they later happen to play the same UCI move as the canonical
         // continuation. Treat that move as off-line too so the engine keeps
         // replying and the letter receives the intended yellow semantics.
-        const lineStillOnTrack = actions.every((action) => action.moveCorrect !== false);
-        const moveCorrect = lineStillOnTrack && uci === expected;
+        const moveCorrect = isCanonicalPlayerMove(movesString, actions, uci);
         let reply = line[2 + actionIndex * 2];
 
         selectedLetter = "";
         selectedSquare = "";
         dispatch("preview", { letter: "" });
-        const completesLine = moveCorrect && !reply;
+        // A few puzzle records intentionally end on the player's move. If
+        // that move leaves a live position, we still need a reply so the board
+        // returns to the player's turn instead of looking frozen. A genuinely
+        // terminal position has no reply and can resolve immediately.
+        const completesLine = moveCorrect && !reply && chess.isGameOver();
         dispatch("move", {
             letter: move.from[0].toUpperCase(),
             uci,
@@ -162,13 +164,14 @@
             // the side-to-move on the opponent, which looks like the player
             // can move black pieces next.
             let replyApplied = reply ? apply(reply) : false;
-            if (!moveCorrect && !replyApplied) {
-                // Sunfish can time out or reject an unusual FEN. Fall back to
-                // the small deterministic in-thread engine and apply its move
-                // before resolving, so the board always returns to the player
-                // instead of appearing frozen on the opponent's turn.
-                reply = chooseReply(chess);
-                replyApplied = Boolean(reply && apply(reply));
+            if (!replyApplied) {
+                // Sunfish can time out, a saved line can contain a stale reply,
+                // or a correct line can simply end before the opponent reply.
+                // Always recover with a legal deterministic move when one
+                // exists, so the board returns to the player's turn.
+                const fallbackReply = chooseReply(chess);
+                replyApplied = Boolean(fallbackReply && apply(fallbackReply));
+                reply = replyApplied ? fallbackReply : "";
             }
             const matedAfterReply = isPlayerMatedAfterReply(chess, playerColor, reply);
             dispatch("resolve", { index: actionIndex, reply, mated: matedAfterReply });
@@ -385,7 +388,7 @@
     .board.piece-set-cburnett :global(.cg-wrap piece) { display: block; color: transparent; }
     .board.piece-set-cburnett :global(.cg-wrap piece::before) { content: none; display: none; }
     @media (max-width: 420px) {
-        .chess { width: min(100%, 18.5rem); margin-top: 0.35rem; }
+        .chess { width: min(100%, 18.5rem); margin-top: 0.1rem; }
         .board-grid { width: calc(100% - 3.3rem); margin-inline: auto; }
     }
     @media (max-width: 420px) and (max-height: 760px) {

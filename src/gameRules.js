@@ -21,6 +21,31 @@ export function scoreWord(guess, target) {
     return result;
 }
 
+/**
+ * Chess feedback occupies the lower portion of an A-H tile. A legal move on
+ * the puzzle line is green; an off-line move is yellow. When no chess move is
+ * associated with the tile, retain the ordinary Wordle color so the tile does
+ * not appear visually split.
+ */
+export function chessMoveStatus(action, letterStatus) {
+    // An absent file letter has no matching move anywhere in the answer.
+    // Keep the tile gray rather than implying the move is merely misplaced.
+    if (letterStatus === 0) return 0;
+    if (!action) return letterStatus;
+    return action.moveCorrect ? 2 : 1;
+}
+
+/**
+ * Determine whether the next player move is still the canonical puzzle move.
+ * A previous off-line action keeps the remainder of the row yellow even if a
+ * later move happens to use the same UCI coordinates as the solution line.
+ */
+export function isCanonicalPlayerMove(movesString, actions = [], uci) {
+    const line = (movesString || "").trim().split(/\s+/).filter(Boolean);
+    const expected = line[1 + actions.length * 2];
+    return actions.every((action) => action.moveCorrect !== false) && uci === expected;
+}
+
 export function playerMoves(movesString) {
     return movesString.trim().split(/\s+/).filter(Boolean).filter((_, index) => index % 2 === 1);
 }

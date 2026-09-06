@@ -8,8 +8,9 @@
   --line: #b0b5b3;
   --burgundy: #702d31;
   --blue: #405d69;
-  --yellow: #b89a51;
-  --green: #667863;
+  /* Teal + amber stay distinct for common red/green color-vision deficiencies. */
+  --yellow: #d79b00;
+  --green: #00796b;
   --gray: #827f76;
   --accent: #405d69;
   --sans: Georgia, "Times New Roman", serif;

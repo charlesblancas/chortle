@@ -6,7 +6,7 @@ import { performance } from "node:perf_hooks";
 import { Chess } from "chess.js";
 import { FIXTURES } from "../src/fixtures.js";
 import { games } from "../src/games/final_games.js";
-import { fileProjection, isMated, isPlayerMatedAfterReply, scoreWord, validatePuzzleRecord } from "../src/gameRules.js";
+import { chessMoveStatus, fileProjection, isCanonicalPlayerMove, isMated, isPlayerMatedAfterReply, scoreWord, validatePuzzleRecord } from "../src/gameRules.js";
 import { chooseReply, isUciMove } from "../src/lib/tinyEngine.js";
 import { applyEngineReply, fastChessReply } from "../src/lib/fastChessEngine.js";
 import { gameStorageKey, normalizeSavedGame, readSavedGame, writeSavedGame } from "../src/lib/gameStorage.js";
@@ -48,6 +48,28 @@ test("mixed fixture line is legal and stateful", () => {
 test("duplicate letters use standard Wordle accounting", () => {
     assert.deepEqual(scoreWord("civic", "cacao"), [2, 0, 0, 0, 1]);
     assert.deepEqual(scoreWord("eerie", "tepee"), [1, 2, 0, 0, 2]);
+});
+
+test("chess feedback is independent from the word color", () => {
+    const correctActions = [
+        { letter: "B", moveCorrect: true },
+        { letter: "H", moveCorrect: true },
+    ];
+    const wrongActions = correctActions.map((action) => ({ ...action, moveCorrect: false }));
+    assert.deepEqual(scoreWord("brush", "blush"), [2, 0, 2, 2, 2]);
+    assert.deepEqual(scoreWord("blush", "blush"), [2, 2, 2, 2, 2]);
+    assert.deepEqual(correctActions.map((action) => chessMoveStatus(action, 2)), [2, 2]);
+    assert.deepEqual(wrongActions.map((action) => chessMoveStatus(action, 2)), [1, 1]);
+    assert.equal(chessMoveStatus({ letter: "B", moveCorrect: false }, 0), 0);
+    assert.equal(chessMoveStatus(null, 0), 0);
+});
+
+test("canonical move matching resets cleanly between rows", () => {
+    const game = games[4];
+    assert.equal(isCanonicalPlayerMove(game.moves, [], "b3d5"), true);
+    assert.equal(isCanonicalPlayerMove(game.moves, [], "h6h7"), false);
+    assert.equal(isCanonicalPlayerMove(game.moves, [{ moveCorrect: true }], "h6h7"), true);
+    assert.equal(isCanonicalPlayerMove(game.moves, [{ moveCorrect: false }], "h6h7"), false);
 });
 
 test("mated fixture is recognized as terminal", () => {
@@ -112,6 +134,19 @@ test("day 1649 can finish with h7 after an off-line Kc3 move", () => {
     assert.equal(chess.isCheckmate(), false);
 });
 
+test("a final canonical player move gets a reply when the line is not terminal", () => {
+    const game = games[4];
+    const position = new Chess(game.fen);
+    for (const uci of game.moves.split(" ")) {
+        position.move({ from: uci.slice(0, 2), to: uci.slice(2, 4), promotion: uci[4] });
+    }
+    assert.equal(position.turn(), "b", "the published line ends after the player move");
+    assert.equal(position.isGameOver(), false);
+    const reply = applyEngineReply(position, "", fastChessReply);
+    assert.ok(reply, "a deterministic reply should be selected");
+    assert.equal(position.turn(), "w", "the reply returns the board to the player");
+});
+
 test("an engine fallback is applied before the reply is reported", () => {
     const chess = new Chess("8/5p2/4k2P/3p4/4b3/1BK1P3/8/8 b - - 3 62");
     const reply = applyEngineReply(chess, "not-a-move", () => "e6d7");
@@ -168,6 +203,7 @@ test("daily game state is safely validated and round-trips through storage", () 
         statuses: Array.from({ length: 5 }, () => Array(5).fill(-1)),
         currentRow: 0,
         actions: [{ letter: "C", uci: "c2c4", reply: "e7e5", moveCorrect: true }],
+        actionHistory: Array.from({ length: 5 }, () => []),
         keyStatuses: { C: -1 },
         mated: false,
         completed: false,
@@ -175,8 +211,12 @@ test("daily game state is safely validated and round-trips through storage", () 
     const browserStorage = { getItem: (name) => storage.get(name) || null, setItem: (name, value) => storage.set(name, value) };
     assert.equal(writeSavedGame(browserStorage, key, state), true);
     assert.deepEqual(readSavedGame(browserStorage, key), state);
+    const legacyState = { ...state };
+    delete legacyState.actionHistory;
+    assert.deepEqual(normalizeSavedGame(legacyState).actionHistory, Array.from({ length: 5 }, () => []));
     assert.equal(normalizeSavedGame({ ...state, currentRow: 5 }), null);
     assert.equal(normalizeSavedGame({ ...state, actions: [{ ...state.actions[0], uci: "not-a-move" }] }), null);
+    assert.equal(normalizeSavedGame({ ...state, actionHistory: [[{ ...state.actions[0], uci: "not-a-move" }], [], [], [], []] }), null);
     assert.equal(normalizeSavedGame({ ...state, guesses: ["T", "", "", "", ""] }), null);
 });
 
@@ -193,6 +233,11 @@ test("completed daily game survives storage and remains restorable", () => {
             { letter: "A", uci: "a1a2", moveCorrect: true },
             { letter: "D", uci: "d1d2", moveCorrect: true },
         ],
+        actionHistory: [[
+            { letter: "B", uci: "b1b2", moveCorrect: true },
+            { letter: "A", uci: "a1a2", moveCorrect: true },
+            { letter: "D", uci: "d1d2", moveCorrect: true },
+        ], [], [], [], []],
         keyStatuses: { B: 2, O: 2, A: 2, R: 2, D: 2 },
         mated: false,
         completed: true,

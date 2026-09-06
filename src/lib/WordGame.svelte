@@ -22,6 +22,7 @@
     let statuses = Array.from({ length: ROWS }, () => Array(5).fill(-1));
     let currentRow = 0;
     let actions = fixture?.initialActions ? [...fixture.initialActions] : [];
+    let actionHistory = Array.from({ length: ROWS }, () => []);
     let previewLetter = "";
     let keyStatuses = {};
     let message = "";
@@ -43,7 +44,7 @@
 
     function saveGame(completed = $gameOver) {
         if (!hydrated || fixture) return;
-        writeSavedGame(localStorage, storageKey, { guesses, statuses, currentRow, actions, keyStatuses, mated, completed });
+        writeSavedGame(localStorage, storageKey, { guesses, statuses, currentRow, actions, actionHistory, keyStatuses, mated, completed });
     }
 
     onMount(() => {
@@ -54,6 +55,7 @@
                 statuses = saved.statuses;
                 currentRow = saved.currentRow;
                 actions = saved.actions;
+                actionHistory = saved.actionHistory;
                 keyStatuses = saved.keyStatuses;
                 mated = saved.mated;
                 // Let child components receive the restored rows before the
@@ -147,12 +149,8 @@
         if (guess.length < 5) { message = "Not enough letters"; return; }
         if (!possibilities.includes(guess.toLowerCase())) { message = `${guess} not in word list`; return; }
         const result = scoreWord(guess, answer);
-        let chessIndex = 0;
-        for (let i = 0; i < guess.length; i++) {
-            if (!FILE_LETTERS.includes(guess[i])) continue;
-            const action = actions[chessIndex++];
-            if (action && action.moveCorrect === false && result[i] === 2) result[i] = 1;
-        }
+        actionHistory[currentRow] = actions.map((action) => ({ ...action }));
+        actionHistory = actionHistory;
         statuses[currentRow] = result; statuses = statuses;
         const nextKeyStatuses = { ...keyStatuses };
         for (let i = 0; i < guess.length; i++) {
@@ -173,7 +171,7 @@
 <GameOver word={answer} {statuses} day={selectedDay} attempts={currentRow + 1} />
 <div class="guesses">
     {#each guesses as guess, index}
-        <Guess status={statuses[index]} word={guess} active={index === currentRow} compact={index !== currentRow} previewLetter={index === currentRow ? previewLetter : ""} />
+        <Guess status={statuses[index]} word={guess} active={index === currentRow} previewLetter={index === currentRow ? previewLetter : ""} actions={index === currentRow ? actions : actionHistory[index]} />
     {/each}
 </div>
 <Chess fen={game.fen} movesString={game.moves} {actions} {mated} {pieceSet} disabled={mated || engineThinking || promotionPending || guesses[currentRow].length >= 5} {highlightFile} on:move={chessLetter} on:resolve={resolveChessMove} on:thinking={(event) => engineThinking = event.detail.active} on:promotion={handlePromotion} on:preview={(event) => previewLetter = event.detail.letter} />
@@ -193,7 +191,8 @@
         .meta span + span::before { margin-right: 0.2rem; }
         .rule { display: none; }
         .row-ready { margin: 0.45rem auto 0; font-size: 0.64rem; }
-        :global(.keyboard) { margin-top: 1rem; }
+        .guesses { gap: 0.18rem; margin-top: 0.25rem; }
+        :global(.keyboard) { margin-top: 0; }
     }
     @media (max-width: 420px) and (max-height: 760px) {
         .guesses { gap: 0.18rem; margin-top: 0.25rem; }
