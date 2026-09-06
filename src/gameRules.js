@@ -22,17 +22,27 @@ export function scoreWord(guess, target) {
 }
 
 /**
- * Chess feedback occupies the lower portion of an A-H tile. A legal move on
- * the puzzle line is green; an off-line move is yellow. When no chess move is
- * associated with the tile, retain the ordinary Wordle color so the tile does
- * not appear visually split.
+ * Chess feedback occupies the lower portion of an A-H tile. The next required
+ * move is green, a move found elsewhere in the puzzle line is yellow, and a
+ * move absent from that line is gray. When no chess move is associated with
+ * the tile, retain the ordinary Wordle color so it does not look split.
  */
-export function chessMoveStatus(action, letterStatus) {
+export function chessMoveStatus(action, letterStatus, solutionMoves = []) {
     // An absent file letter has no matching move anywhere in the answer.
     // Keep the tile gray rather than implying the move is merely misplaced.
     if (letterStatus === 0) return 0;
     if (!action) return letterStatus;
-    return action.moveCorrect ? 2 : 1;
+    if (action.moveCorrect) return 2;
+    return solutionMoves.includes(action.uci) ? 1 : 0;
+}
+
+/** A solved row needs the exact word and its complete correct chess sequence. */
+export function isSolvedGuess(letterStatuses, word, actions = []) {
+    const requiredMoves = [...word].filter((letter) => FILE_LETTERS.includes(letter.toUpperCase())).length;
+    return letterStatuses.length === 5
+        && letterStatuses.every((status) => status === 2)
+        && actions.length === requiredMoves
+        && actions.every((action) => action.moveCorrect);
 }
 
 /**

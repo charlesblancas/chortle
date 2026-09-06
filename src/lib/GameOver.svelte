@@ -1,14 +1,17 @@
 <script>
+    import { createEventDispatcher } from "svelte";
     import Modal from "./Modal.svelte";
     import { gameOver } from "../stores";
 
     export let word;
     export let statuses;
+    export let solved = false;
     export let day;
     export let attempts;
     let gameSummary = "";
     let copied = false;
     let gameOverValue;
+    const dispatch = createEventDispatcher();
     gameOver.subscribe((value) => {
         gameOverValue = value;
         if (value) gameSummary = generateSummary();
@@ -20,7 +23,6 @@
     function generateSummary() {
         return statuses.filter((status) => status.some((value) => value >= 0)).map((status) => status.map(numberToSquare).join("")).join("\n");
     }
-    $: solved = statuses.some((status) => status.every((value) => value === 2));
     $: shareMessage = `CHORTLE BETA #${String(day).padStart(4, "0")} ${solved ? `${attempts}/5` : "X/5"}\nhttps://chortle.charlesblancas.com\n${gameSummary}`;
 
     async function copyResult() {
@@ -39,6 +41,7 @@
     <p class="answer">Today’s answer: <strong>{word}</strong></p>
     <p class="summary" aria-label="Result grid">{gameSummary}</p>
     <button type="button" on:click={copyResult}>{copied ? "Copied" : "Copy result"}</button>
+    {#if import.meta.env.DEV}<button class="reset" type="button" on:click={() => dispatch("reset")}>Reset puzzle</button>{/if}
 </Modal>
 
 <style>
@@ -48,4 +51,5 @@
     .answer { margin: 0 0 1rem; }
     .answer strong { color: var(--text); letter-spacing: 0.08em; }
     .summary { margin: 0 0 1.1rem; padding: 0.7rem 0; border-block: 1px solid var(--line); white-space: pre; color: var(--text); font-size: 1.05rem; letter-spacing: 0.05em; }
+    .reset { margin-left: 0.45rem; color: var(--burgundy); border-color: var(--burgundy); }
 </style>

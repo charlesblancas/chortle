@@ -35,6 +35,7 @@ export function normalizeSavedGame(value) {
     if (!Number.isInteger(value.currentRow) || value.currentRow < 0 || value.currentRow >= ROWS) return null;
     if (!Array.isArray(value.actions) || !value.actions.every(isAction)) return null;
     if (value.actions.length !== chessLetterCount(value.guesses[value.currentRow])) return null;
+    const hasStoredActionHistory = Array.isArray(value.actionHistory);
     const actionHistory = value.actionHistory ?? Array.from({ length: ROWS }, () => []);
     if (!Array.isArray(actionHistory) || actionHistory.length !== ROWS) return null;
     if (!actionHistory.every((row) => Array.isArray(row) && row.every(isAction))) return null;
@@ -44,15 +45,33 @@ export function normalizeSavedGame(value) {
     if (!value.keyStatuses || typeof value.keyStatuses !== "object" || Array.isArray(value.keyStatuses)) return null;
     if (!Object.entries(value.keyStatuses).every(([key, status]) => /^[A-Z]$/.test(key) && VALID_STATUS.has(status))) return null;
     if (typeof value.mated !== "boolean" || typeof value.completed !== "boolean") return null;
+    const solved = typeof value.solved === "boolean"
+        ? value.solved
+        : hasStoredActionHistory
+            ? value.statuses.some((status, row) => status.every((entry) => entry === 2)
+                && actionHistory[row].length === chessLetterCount(value.guesses[row])
+                && actionHistory[row].every((action) => action.moveCorrect))
+            : value.statuses.some((status) => status.every((entry) => entry === 2));
+    let currentRow = value.currentRow;
+    let actions = value.actions.map((action) => ({ ...action }));
+    let completed = value.completed;
+    // Versions before chess-aware wins could save an exact word with an
+    // incorrect move sequence as completed. Resume it on the next attempt.
+    if (!solved && completed && currentRow < ROWS - 1 && value.statuses[currentRow].some((entry) => entry >= 0)) {
+        currentRow += 1;
+        actions = [];
+        completed = false;
+    }
     return {
         guesses: [...value.guesses],
         statuses: value.statuses.map((row) => [...row]),
-        currentRow: value.currentRow,
-        actions: value.actions.map((action) => ({ ...action })),
+        currentRow,
+        actions,
         actionHistory: actionHistory.map((row) => row.map((action) => ({ ...action }))),
         keyStatuses: { ...value.keyStatuses },
         mated: value.mated,
-        completed: value.completed,
+        solved,
+        completed,
     };
 }
 

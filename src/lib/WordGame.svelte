@@ -8,7 +8,7 @@
     import { games } from "../games/final_games";
     import { possibilities } from "../games/possibilities";
     import { gameOver, showInstructions } from "../stores";
-    import { scoreWord } from "../gameRules";
+    import { isSolvedGuess, playerMoves, scoreWord } from "../gameRules";
     import { gameStorageKey, readSavedGame, writeSavedGame } from "./gameStorage";
     import { onMount, tick } from "svelte";
 
@@ -23,6 +23,7 @@
     let currentRow = 0;
     let actions = fixture?.initialActions ? [...fixture.initialActions] : [];
     let actionHistory = Array.from({ length: ROWS }, () => []);
+    let solved = false;
     let previewLetter = "";
     let keyStatuses = {};
     let message = "";
@@ -36,6 +37,7 @@
     const dailyGame = games[(selectedDay - 1) % games.length];
     $: game = fixture?.game || dailyGame;
     $: answer = game.word.toUpperCase();
+    $: solutionMoves = playerMoves(game.moves);
     let mated = fixture?.mated || false;
     let promotionPending = false;
     let hydrated = false;
@@ -44,7 +46,7 @@
 
     function saveGame(completed = $gameOver) {
         if (!hydrated || fixture) return;
-        writeSavedGame(localStorage, storageKey, { guesses, statuses, currentRow, actions, actionHistory, keyStatuses, mated, completed });
+        writeSavedGame(localStorage, storageKey, { guesses, statuses, currentRow, actions, actionHistory, keyStatuses, mated, solved, completed });
     }
 
     onMount(() => {
@@ -58,6 +60,7 @@
                 actionHistory = saved.actionHistory;
                 keyStatuses = saved.keyStatuses;
                 mated = saved.mated;
+                solved = saved.solved;
                 // Let child components receive the restored rows before the
                 // result modal subscribes to the completed state.  This keeps
                 // a completed game visible, including its result grid, after
@@ -158,20 +161,27 @@
             nextKeyStatuses[letter] = Math.max(nextKeyStatuses[letter] ?? -1, result[i]);
         }
         keyStatuses = nextKeyStatuses;
-        if (result.every((x) => x === 2) || currentRow === ROWS - 1) { showInstructions.set(false); gameOver.set(true); saveGame(true); return; }
+        solved = isSolvedGuess(result, guess, actions);
+        if (solved || currentRow === ROWS - 1) { showInstructions.set(false); gameOver.set(true); saveGame(true); return; }
+        if (result.every((x) => x === 2)) message = "Word right. Replay it with the right board moves.";
         currentRow += 1;
         actions = [];
         saveGame(false);
+    }
+
+    function resetDebugGame() {
+        if (!fixture) localStorage.removeItem(storageKey);
+        window.location.reload();
     }
 </script>
 
 <GameError {message} />
 <Instructions />
 <div class="meta"><span>Puzzle {String(selectedDay).padStart(4, "0")}</span><span>{dateLabel}</span><span>Attempt {currentRow + 1}/{ROWS}</span></div>
-<GameOver word={answer} {statuses} day={selectedDay} attempts={currentRow + 1} />
+<GameOver word={answer} {statuses} {solved} day={selectedDay} attempts={currentRow + 1} on:reset={resetDebugGame} />
 <div class="guesses">
     {#each guesses as guess, index}
-        <Guess status={statuses[index]} word={guess} active={index === currentRow} previewLetter={index === currentRow ? previewLetter : ""} actions={index === currentRow ? actions : actionHistory[index]} />
+        <Guess status={statuses[index]} word={guess} active={index === currentRow} previewLetter={index === currentRow ? previewLetter : ""} actions={index === currentRow ? actions : actionHistory[index]} {solutionMoves} />
     {/each}
 </div>
 <Chess fen={game.fen} movesString={game.moves} {actions} {mated} {pieceSet} disabled={mated || engineThinking || promotionPending || guesses[currentRow].length >= 5} {highlightFile} on:move={chessLetter} on:resolve={resolveChessMove} on:thinking={(event) => engineThinking = event.detail.active} on:promotion={handlePromotion} on:preview={(event) => previewLetter = event.detail.letter} />

@@ -6,7 +6,7 @@ import { performance } from "node:perf_hooks";
 import { Chess } from "chess.js";
 import { FIXTURES } from "../src/fixtures.js";
 import { games } from "../src/games/final_games.js";
-import { chessMoveStatus, fileProjection, isCanonicalPlayerMove, isMated, isPlayerMatedAfterReply, scoreWord, validatePuzzleRecord } from "../src/gameRules.js";
+import { chessMoveStatus, fileProjection, isCanonicalPlayerMove, isMated, isPlayerMatedAfterReply, isSolvedGuess, scoreWord, validatePuzzleRecord } from "../src/gameRules.js";
 import { chooseReply, isUciMove } from "../src/lib/tinyEngine.js";
 import { applyEngineReply, fastChessReply } from "../src/lib/fastChessEngine.js";
 import { gameStorageKey, normalizeSavedGame, readSavedGame, writeSavedGame } from "../src/lib/gameStorage.js";
@@ -52,16 +52,30 @@ test("duplicate letters use standard Wordle accounting", () => {
 
 test("chess feedback is independent from the word color", () => {
     const correctActions = [
-        { letter: "B", moveCorrect: true },
-        { letter: "H", moveCorrect: true },
+        { letter: "B", uci: "b3d5", moveCorrect: true },
+        { letter: "H", uci: "h6h7", moveCorrect: true },
     ];
     const wrongActions = correctActions.map((action) => ({ ...action, moveCorrect: false }));
     assert.deepEqual(scoreWord("brush", "blush"), [2, 0, 2, 2, 2]);
     assert.deepEqual(scoreWord("blush", "blush"), [2, 2, 2, 2, 2]);
     assert.deepEqual(correctActions.map((action) => chessMoveStatus(action, 2)), [2, 2]);
-    assert.deepEqual(wrongActions.map((action) => chessMoveStatus(action, 2)), [1, 1]);
-    assert.equal(chessMoveStatus({ letter: "B", moveCorrect: false }, 0), 0);
+    assert.deepEqual(wrongActions.map((action) => chessMoveStatus(action, 2, ["b3d5", "h6h7"])), [1, 1]);
+    assert.equal(chessMoveStatus({ letter: "B", uci: "b3b4", moveCorrect: false }, 2, ["b3d5"]), 0);
+    assert.equal(chessMoveStatus({ letter: "B", uci: "b3d5", moveCorrect: false }, 0, ["b3d5"]), 0);
     assert.equal(chessMoveStatus(null, 0), 0);
+});
+
+test("an exact word only solves with its complete chess sequence", () => {
+    const word = "fifty";
+    const exact = scoreWord(word, word);
+    assert.equal(isSolvedGuess(exact, word, [
+        { letter: "F", moveCorrect: true },
+        { letter: "F", moveCorrect: true },
+    ]), true);
+    assert.equal(isSolvedGuess(exact, word, [
+        { letter: "F", moveCorrect: false },
+        { letter: "F", moveCorrect: true },
+    ]), false);
 });
 
 test("canonical move matching resets cleanly between rows", () => {
@@ -206,6 +220,7 @@ test("daily game state is safely validated and round-trips through storage", () 
         actionHistory: Array.from({ length: 5 }, () => []),
         keyStatuses: { C: -1 },
         mated: false,
+        solved: false,
         completed: false,
     };
     const browserStorage = { getItem: (name) => storage.get(name) || null, setItem: (name, value) => storage.set(name, value) };
@@ -218,6 +233,30 @@ test("daily game state is safely validated and round-trips through storage", () 
     assert.equal(normalizeSavedGame({ ...state, actions: [{ ...state.actions[0], uci: "not-a-move" }] }), null);
     assert.equal(normalizeSavedGame({ ...state, actionHistory: [[{ ...state.actions[0], uci: "not-a-move" }], [], [], [], []] }), null);
     assert.equal(normalizeSavedGame({ ...state, guesses: ["T", "", "", "", ""] }), null);
+});
+
+test("a legacy exact word with a wrong chess sequence resumes instead of winning", () => {
+    const legacy = {
+        guesses: ["FIFTY", "", "", "", ""],
+        statuses: [[2, 2, 2, 2, 2], ...Array.from({ length: 4 }, () => Array(5).fill(-1))],
+        currentRow: 0,
+        actions: [
+            { letter: "F", uci: "f3f6", moveCorrect: false },
+            { letter: "F", uci: "f7f8q", moveCorrect: false },
+        ],
+        actionHistory: [[
+            { letter: "F", uci: "f3f6", moveCorrect: false },
+            { letter: "F", uci: "f7f8q", moveCorrect: false },
+        ], [], [], [], []],
+        keyStatuses: { F: 2, I: 2, T: 2, Y: 2 },
+        mated: false,
+        completed: true,
+    };
+    const restored = normalizeSavedGame(legacy);
+    assert.equal(restored.solved, false);
+    assert.equal(restored.completed, false);
+    assert.equal(restored.currentRow, 1);
+    assert.deepEqual(restored.actions, []);
 });
 
 test("completed daily game survives storage and remains restorable", () => {
@@ -240,6 +279,7 @@ test("completed daily game survives storage and remains restorable", () => {
         ], [], [], [], []],
         keyStatuses: { B: 2, O: 2, A: 2, R: 2, D: 2 },
         mated: false,
+        solved: true,
         completed: true,
     };
     const browserStorage = { getItem: (name) => storage.get(name) || null, setItem: (name, value) => storage.set(name, value) };

@@ -7,6 +7,7 @@
     export let active = false;
     export let previewLetter = "";
     export let actions = [];
+    export let solutionMoves = [];
 
     function formatMove(uci = "") {
         if (!uci) return "";
@@ -30,7 +31,7 @@
             const action = actions[actionIndex++];
             return {
                 move: formatMove(action?.uci),
-                moveStatus: submitted ? chessMoveStatus(action, letterStatus) : -1
+                moveStatus: submitted ? chessMoveStatus(action, letterStatus, solutionMoves) : -1
             };
         });
     })();

@@ -22,12 +22,12 @@
         <li>Type I–Z as usual.</li>
         <li>For A–H, move a piece from that file.</li>
         <li>Backspace undoes the last letter and move.</li>
-        <li>Tiles use the color key below.</li>
+        <li>Top is the letter; an A–H strip below is its chess move.</li>
     </ol>
     <div class="legend" aria-label="Color key">
-        <span class="swatch green">Green <small>correct position + move</small></span>
-        <span class="swatch yellow">Yellow <small>elsewhere in word, or wrong move</small></span>
-        <span class="swatch gray">Gray <small>not in word</small></span>
+        <span class="swatch green">Green <small>correct here</small></span>
+        <span class="swatch yellow">Yellow <small>elsewhere in the word or chess line</small></span>
+        <span class="swatch gray">Gray <small>not in the word or chess line</small></span>
     </div>
     <button on:click={closeInstructions}>Understood</button>
 </Modal>
