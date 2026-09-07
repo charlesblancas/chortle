@@ -1,5 +1,5 @@
 <script>
-    import { createEventDispatcher, onDestroy, onMount } from "svelte";
+    import { createEventDispatcher, onDestroy } from "svelte";
     import Chess from "./Chess.svelte";
     import {
         cacheSunfishAnalysis,
@@ -8,7 +8,7 @@
         seedSunfishAnalysis,
         sunfishAnalyze,
     } from "./sunfishEngine";
-    import { buildSolutionPositions, evaluationLabel, evaluationPercent, materialEvaluation } from "./solutionReplay";
+    import { buildSolutionPositions, evaluationLabel, evaluationPercent, fenAfterUci, materialEvaluation } from "./solutionReplay";
 
     export let fen;
     export let movesString;
@@ -84,8 +84,33 @@
             : "";
     }
 
+    async function prefetchChildAnalysis(positionFen, request, controller) {
+        if (!positionFen || request !== analysisRequest || controller.signal.aborted) return;
+        if (getCachedSunfishAnalysis(positionFen)?.verified) return;
+        try {
+            const result = await sunfishAnalyze(positionFen, 2, ANALYSIS_TIMEOUT_MS, { signal: controller.signal });
+            if (request !== analysisRequest || controller.signal.aborted) return;
+            cacheSunfishAnalysis(positionFen, 2, result);
+        } catch (error) {
+            // Prefetching is a convenience only. The displayed position keeps
+            // its normal analysis loop if a child is invalid or cancelled.
+            if (controller.signal.aborted || request !== analysisRequest) return;
+        }
+    }
+
+    async function prefetchLikelyChildren(positionFen, canonicalMove, sunfishMove, request, controller) {
+        const childFens = new Set(
+            [canonicalMove, sunfishMove]
+                .map((move) => fenAfterUci(positionFen, move))
+                .filter(Boolean),
+        );
+        for (const childFen of childFens) {
+            if (request !== analysisRequest || controller.signal.aborted) return;
+            await prefetchChildAnalysis(childFen, request, controller);
+        }
+    }
+
     async function requestAnalysis(positionFen, canonicalMove = "") {
-        if (typeof document !== "undefined" && document.hidden) return;
         stopAnalysis();
         const request = analysisRequest;
         const controller = new AbortController();
@@ -135,6 +160,7 @@
             if (suggestion) {
                 setArrows(canonicalMove, result.move);
             }
+            await prefetchLikelyChildren(positionFen, canonicalMove, result.move, request, controller);
         }
     }
 
@@ -209,18 +235,6 @@
         event.preventDefault();
         goPrevious();
     }
-
-    onMount(() => {
-        const handleVisibilityChange = () => {
-            if (document.hidden) {
-                stopAnalysis();
-            } else if (interactive) {
-                requestAnalysis(boardFen, canonicalMove);
-            }
-        };
-        document.addEventListener("visibilitychange", handleVisibilityChange);
-        return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
-    });
 
     onDestroy(stopAnalysis);
 

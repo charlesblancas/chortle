@@ -2,6 +2,22 @@ import { Chess } from "chess.js";
 
 const PIECE_VALUES = { p: 100, n: 320, b: 330, r: 500, q: 900, k: 0 };
 
+/** Return the exact child FEN for a legal UCI move, or an empty string. */
+export function fenAfterUci(fen, uci) {
+    if (!/^[a-h][1-8][a-h][1-8][qrbn]?$/.test(uci)) return "";
+    try {
+        const chess = new Chess(fen);
+        const move = chess.move({
+            from: uci.slice(0, 2),
+            to: uci.slice(2, 4),
+            promotion: uci[4],
+        });
+        return move ? chess.fen() : "";
+    } catch {
+        return "";
+    }
+}
+
 /**
  * Build the immutable positions used by the solution replay. Position zero is
  * the playable board after the automatic setup move; each following item is

@@ -10,7 +10,7 @@ import { chessMoveStatus, combineFeedbackStatuses, dailyPuzzleIndex, fileProject
 import { chooseReply, isUciMove } from "../src/lib/tinyEngine.js";
 import { applyEngineReply, fastChessReply } from "../src/lib/fastChessEngine.js";
 import { gameStorageKey, normalizeSavedGame, readSavedGame, writeSavedGame } from "../src/lib/gameStorage.js";
-import { buildSolutionPositions, evaluationLabel, evaluationPercent, materialEvaluation } from "../src/lib/solutionReplay.js";
+import { buildSolutionPositions, evaluationLabel, evaluationPercent, fenAfterUci, materialEvaluation } from "../src/lib/solutionReplay.js";
 import { cacheSunfishAnalysis, getCachedSunfishAnalysis, seedSunfishAnalysis, sunfishAnalyze } from "../src/lib/sunfishEngine.js";
 
 const mixed = FIXTURES.find((fixture) => fixture.id === "mixed-entry");
@@ -256,6 +256,19 @@ test("solution replay starts at the playable position and visits every canonical
     assert.equal(positions[1].move, game.moves.split(/\s+/)[1]);
     assert.equal(positions.at(-1).move, game.moves.trim().split(/\s+/).at(-1));
     assert.notEqual(positions[0].fen, game.fen, "the automatic setup move is already shown in normal play");
+});
+
+test("solution replay derives exact child FENs for normal and promotion moves", () => {
+    const normal = new Chess();
+    normal.move({ from: "e2", to: "e4" });
+    assert.equal(fenAfterUci(new Chess().fen(), "e2e4"), normal.fen());
+
+    const promotionFen = "7k/P7/8/8/8/8/8/2K5 w - - 0 1";
+    const promoted = new Chess(promotionFen);
+    promoted.move({ from: "a7", to: "a8", promotion: "q" });
+    assert.equal(fenAfterUci(promotionFen, "a7a8q"), promoted.fen());
+    assert.equal(fenAfterUci(promotionFen, "a7a8"), "");
+    assert.equal(fenAfterUci(promotionFen, "not-a-move"), "");
 });
 
 test("solution evaluation fallback is deterministic and readable", () => {

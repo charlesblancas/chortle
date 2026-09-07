@@ -169,6 +169,33 @@ test("solution replay keeps Backspace as previous", async ({ page }) => {
     await expect(page.getByText(/Puzzle start · 0\//)).toBeVisible();
 });
 
+test("switching tabs does not reset the active solution analysis", async ({ page }) => {
+    await page.addInitScript(() => {
+        const NativeWorker = window.Worker;
+        window.__sunfishTerminations = 0;
+        window.Worker = class CountingWorker extends NativeWorker {
+            terminate() {
+                window.__sunfishTerminations += 1;
+                return super.terminate();
+            }
+        };
+    });
+    await page.goto("/?fixture=solution-state");
+    await page.getByRole("dialog").getByRole("button", { name: "Understood" }).click();
+    await page.getByRole("dialog").getByRole("button", { name: "View solution" }).click();
+    await expect(page.locator(".evaluation-bar")).toBeVisible();
+
+    const before = await page.evaluate(() => window.__sunfishTerminations);
+    await page.evaluate(() => {
+        Object.defineProperty(document, "hidden", { configurable: true, value: true });
+        document.dispatchEvent(new Event("visibilitychange"));
+        Object.defineProperty(document, "hidden", { configurable: true, value: false });
+        document.dispatchEvent(new Event("visibilitychange"));
+    });
+    await page.waitForTimeout(100);
+    expect(await page.evaluate(() => window.__sunfishTerminations)).toBe(before);
+});
+
 test("keyboard chess controls retain the selected square", async ({ page }) => {
     await page.goto("/?fixture=solution-state");
     await page.getByRole("dialog").getByRole("button", { name: "Understood" }).click();
