@@ -1,7 +1,13 @@
 <script>
     import { createEventDispatcher, onDestroy, onMount } from "svelte";
     import Chess from "./Chess.svelte";
-    import { cancelSunfishAnalysis, sunfishAnalyze } from "./sunfishEngine";
+    import {
+        cacheSunfishAnalysis,
+        cancelSunfishAnalysis,
+        getCachedSunfishAnalysis,
+        seedSunfishAnalysis,
+        sunfishAnalyze,
+    } from "./sunfishEngine";
     import { buildSolutionPositions, evaluationLabel, evaluationPercent, materialEvaluation } from "./solutionReplay";
 
     export let fen;
@@ -79,18 +85,25 @@
         if (typeof document !== "undefined" && document.hidden) return;
         const request = ++analysisRequest;
         cancelSunfishAnalysis();
-        setArrows(canonicalMove);
+        const cached = getCachedSunfishAnalysis(positionFen);
+        setArrows(canonicalMove, cached?.move);
 
         const fallback = materialEvaluation(positionFen);
-        // Keep the last displayed score while the worker evaluates the new
+        if (cached && Number.isFinite(cached.score)) {
+            evaluation = cached.score;
+            evaluationSource = cached.verified
+                ? `Sunfish depth ${cached.depth} (cached)`
+                : `Sunfish depth ${cached.depth} from the suggested move (checking)`;
+        // Keep the last displayed score while the worker evaluates an unseen
         // position. Replacing it immediately with material balance makes the
         // bar visibly jump toward the centre between every move.
-        if (request === 1) {
+        } else if (request === 1) {
             evaluation = fallback;
             evaluationSource = "material fallback";
         }
 
-        for (let depth = 2; request === analysisRequest; depth += 1) {
+        const firstDepth = cached?.verified ? cached.depth + 1 : 2;
+        for (let depth = firstDepth; request === analysisRequest; depth += 1) {
             if (request !== analysisRequest) return;
             let result;
             for (let attempt = 0; attempt < 8; attempt += 1) {
@@ -106,6 +119,7 @@
                 }
             }
             if (request !== analysisRequest || !result) return;
+            cacheSunfishAnalysis(positionFen, depth, result);
             if (Number.isFinite(result.score)) {
                 evaluation = result.score;
                 evaluationSource = `Sunfish depth ${depth}`;
@@ -158,6 +172,10 @@
     }
 
     function handleReplayMove(event) {
+        const cachedParent = getCachedSunfishAnalysis(boardFen);
+        if (cachedParent?.move?.toLowerCase() === event.detail.uci.toLowerCase()) {
+            seedSunfishAnalysis(event.detail.fen, cachedParent);
+        }
         const nextMove = positions[positionIndex + 1]?.move || "";
         if (!customPosition && nextMove && event.detail.uci === nextMove) {
             positionIndex += 1;

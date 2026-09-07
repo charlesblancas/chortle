@@ -11,6 +11,7 @@ import { chooseReply, isUciMove } from "../src/lib/tinyEngine.js";
 import { applyEngineReply, fastChessReply } from "../src/lib/fastChessEngine.js";
 import { gameStorageKey, normalizeSavedGame, readSavedGame, writeSavedGame } from "../src/lib/gameStorage.js";
 import { buildSolutionPositions, evaluationLabel, evaluationPercent, materialEvaluation } from "../src/lib/solutionReplay.js";
+import { cacheSunfishAnalysis, getCachedSunfishAnalysis, seedSunfishAnalysis } from "../src/lib/sunfishEngine.js";
 
 const mixed = FIXTURES.find((fixture) => fixture.id === "mixed-entry");
 
@@ -265,6 +266,32 @@ test("solution evaluation fallback is deterministic and readable", () => {
     assert.equal(evaluationLabel(-250), "Black +2.5");
     assert.equal(evaluationPercent(0), 50);
     assert.equal(evaluationPercent(10000), 95);
+});
+
+test("Sunfish analysis cache restores moves and carries a suggested child score", () => {
+    const parentFen = "cache-parent";
+    const childFen = "cache-child";
+    cacheSunfishAnalysis(parentFen, 14, { move: "c3c2", score: 375 });
+    cacheSunfishAnalysis(parentFen, 4, { move: "a1a2", score: 0 });
+
+    const parent = getCachedSunfishAnalysis(parentFen);
+    assert.deepEqual(parent, { depth: 14, move: "c3c2", score: 375, verified: true });
+
+    seedSunfishAnalysis(childFen, parent);
+    assert.deepEqual(getCachedSunfishAnalysis(childFen), {
+        depth: 14,
+        move: "",
+        score: 375,
+        verified: false,
+    });
+
+    cacheSunfishAnalysis(childFen, 2, { move: "d4d5", score: 410 });
+    assert.deepEqual(getCachedSunfishAnalysis(childFen), {
+        depth: 2,
+        move: "d4d5",
+        score: 410,
+        verified: true,
+    });
 });
 
 test("vendored Sunfish returns a deterministic evaluation score", () => {

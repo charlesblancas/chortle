@@ -1,5 +1,6 @@
 const SEARCH_TIMEOUT_MS = 300;
 const READY_TIMEOUT_MS = 1000;
+const ANALYSIS_CACHE_LIMIT = 96;
 
 let worker;
 let ready;
@@ -7,6 +8,56 @@ let resolveReady;
 let rejectReady;
 let readyTimer;
 let pendingSearch;
+const analysisCache = new Map();
+
+function cacheAnalysis(fen, entry) {
+    // Refreshing the insertion order makes this a small, predictable LRU
+    // cache instead of keeping every position the player visits forever.
+    analysisCache.delete(fen);
+    analysisCache.set(fen, entry);
+    if (analysisCache.size > ANALYSIS_CACHE_LIMIT) {
+        analysisCache.delete(analysisCache.keys().next().value);
+    }
+}
+
+/**
+ * Return the best in-memory analysis for an exact FEN. A provisional entry
+ * inherited from a suggested parent move is deliberately marked unverified.
+ */
+export function getCachedSunfishAnalysis(fen) {
+    const entry = analysisCache.get(fen);
+    if (!entry) return null;
+    cacheAnalysis(fen, entry);
+    return { ...entry };
+}
+
+/** Keep the deepest directly-searched result for a FEN. */
+export function cacheSunfishAnalysis(fen, depth, result) {
+    const existing = analysisCache.get(fen);
+    if (existing?.verified && existing.depth > depth) return;
+    cacheAnalysis(fen, {
+        depth,
+        move: result.move || "",
+        score: Number.isFinite(result.score) ? result.score : null,
+        verified: true,
+    });
+}
+
+/**
+ * A Sunfish-recommended move generally preserves the parent's evaluation.
+ * Show that value while the child gets its own real search, but never let it
+ * replace a direct result already cached for the child.
+ */
+export function seedSunfishAnalysis(fen, parent) {
+    if (!parent?.verified || !Number.isFinite(parent.score)) return;
+    if (analysisCache.get(fen)?.verified) return;
+    cacheAnalysis(fen, {
+        depth: parent.depth,
+        move: "",
+        score: parent.score,
+        verified: false,
+    });
+}
 
 function parseScore(line) {
     const match = /^info\s+.*\bscore\s+cp\s+(-?\d+)/.exec(line);
