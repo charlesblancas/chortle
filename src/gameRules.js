@@ -2,6 +2,72 @@ import { Chess } from "chess.js";
 
 export const FILE_LETTERS = "ABCDEFGH";
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Return a stable integer for a calendar date, independent of the number of
+ * elapsed hours in that local day.  Using Date subtraction directly here
+ * makes the daily puzzle number jump (or repeat) across daylight-saving
+ * transitions, where a local day is not always 24 hours long.
+ */
+function calendarDayNumber(value) {
+    // Treat a date-only ISO string as a calendar date, not as UTC midnight.
+    // The latter becomes the previous local date in western time zones.
+    if (typeof value === "string") {
+        const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+        if (match) {
+            const [, year, month, day] = match;
+            return Date.UTC(Number(year), Number(month) - 1, Number(day)) / DAY_MS;
+        }
+    }
+    const date = value instanceof Date ? value : new Date(value);
+    if (Number.isNaN(date.getTime())) return null;
+
+    // Date.UTC gives us a UTC midnight for the local calendar components.  It
+    // is only used as an integer day counter; no local timezone offset or DST
+    // adjustment can affect the result.
+    return Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()) / DAY_MS;
+}
+
+export function dailyPuzzleIndex(date = new Date(), startDate = new Date(2026, 8, 1)) {
+    const currentDay = calendarDayNumber(date);
+    const firstDay = calendarDayNumber(startDate);
+    if (currentDay === null || firstDay === null) return 1;
+    return Math.max(1, Math.floor(currentDay - firstDay) + 1);
+}
+
+// Keep a descriptive alias for callers that prefer a getter-style name.
+export const getDailyIndex = dailyPuzzleIndex;
+export const dailyIndex = dailyPuzzleIndex;
+
+/**
+ * Whether a keydown belongs to the game rather than a browser shortcut or a
+ * focused control.  Keeping this predicate pure makes the global keyboard
+ * boundary easy to test without mounting the Svelte component.
+ */
+export function isInteractiveKeyTarget(target) {
+    if (!target || typeof target !== "object") return false;
+    if (target.isContentEditable) return true;
+    const tagName = typeof target.tagName === "string" ? target.tagName.toLowerCase() : "";
+    if (["input", "textarea", "select", "button", "a", "summary"].includes(tagName)) return true;
+    try {
+        return typeof target.closest === "function"
+            && Boolean(target.closest("input, textarea, select, button, a, summary, [contenteditable='true']"));
+    } catch {
+        return false;
+    }
+}
+
+export function shouldHandleWordGameKey(event) {
+    if (!event || event.defaultPrevented || event.repeat) return false;
+    // Modifier chords belong to the browser/assistive controls, not the game
+    // input surface. Uppercase input still arrives as `event.key` from the
+    // on-screen keyboard and does not need a shift chord here.
+    if (event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) return false;
+    if (isInteractiveKeyTarget(event.target)) return false;
+    return /^[A-Za-z]$/.test(event.key || "") || event.key === "Backspace" || event.key === "Enter";
+}
+
 export function scoreWord(guess, target) {
     const remaining = {};
     const result = Array(5).fill(0);

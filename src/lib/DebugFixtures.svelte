@@ -17,15 +17,7 @@
         { id: "glyph", label: "Typographic glyphs", description: "Crisp text glyphs that match the promotion chooser." },
         { id: "chessnut", label: "Chessnut diagrams", description: "The outlined diagrams from the alternate piece set." },
         { id: "cburnett", label: "Cburnett", description: "The classic Chessground pieces bundled with the board." },
-        { id: "berlin", label: "Berlin", description: "East German Sportverlag-inspired diagrams for a Cold War book feel." },
-        { id: "leipzig", label: "Leipzig", description: "Period German book illustrations with a distinctly printed look." },
-        { id: "alpha", label: "Alpha", description: "A clean, traditional outlined set by Eric Bentzen." },
-        { id: "merida", label: "Merida", description: "The familiar tournament-style set by Armando Hernandez Marroquin." },
-        { id: "maestro", label: "Maestro", description: "A heavier, expressive set by sadsnake1." },
-        { id: "fantasy", label: "Fantasy", description: "A decorative hand-drawn set by Maurizio Monge." },
-        { id: "caliente", label: "Caliente", description: "A compact modern set by Leonid Gordenin." },
-        { id: "horsey", label: "Horsey", description: "A playful set by cham and michael1241." },
-        { id: "pixel", label: "Pixel", description: "A retro pixel-art set by therealqtpi." },
+        { id: "merida", label: "Merida", description: "The familiar tournament-style set by Armando Hernandez Marroquin (GPLv2+)." },
         { id: "mono", label: "Mono", description: "A simple monochrome set from the Chessground collection." },
     ];
     const SAMPLES = [

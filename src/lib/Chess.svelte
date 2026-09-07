@@ -3,7 +3,7 @@
     import { Chess, SQUARES } from "chess.js";
     import { Chessground } from "svelte-chessground";
     import { isCanonicalPlayerMove, isPlayerMatedAfterReply } from "../gameRules";
-    import { chooseReply, isUciMove } from "./tinyEngine";
+    import { firstLegalReply, isUciMove } from "./fastChessEngine";
     import { sunfishReply, warmSunfish } from "./sunfishEngine";
 
     export let fen;
@@ -12,8 +12,12 @@
     export let pieceSet = "cburnett";
     export let disabled = false;
     export let mated = false;
+    // A terminal position can be a self-mate, checkmate of the opponent, or
+    // a draw. Keep it separate from `mated` so an off-line move that ends the
+    // game does not display the wrong banner or leave the row half-live.
+    export let terminal = false;
     export let highlightFile = "";
-    const IMAGE_PIECE_SETS = new Set(["chessnut", "cburnett", "berlin", "leipzig", "alpha", "merida", "maestro", "fantasy", "caliente", "horsey", "pixel", "mono"]);
+    const IMAGE_PIECE_SETS = new Set(["chessnut", "cburnett", "merida", "mono"]);
     const PIECE_CODES = ["P", "N", "B", "R", "Q", "K"];
     const dispatch = createEventDispatcher();
     const chess = new Chess();
@@ -39,6 +43,10 @@
     $: playerColor = orientation;
     $: files = orientation === "white" ? "ABCDEFGH".split("") : "HGFEDCBA".split("");
     $: ranks = orientation === "white" ? [8, 7, 6, 5, 4, 3, 2, 1] : [1, 2, 3, 4, 5, 6, 7, 8];
+    $: boardSquares = ranks.flatMap((rank) => files.map((file) => `${file.toLowerCase()}${rank}`));
+    $: selectedDestinations = selectedSquare
+        ? chess.moves({ square: selectedSquare, verbose: true }).map((move) => move.to)
+        : [];
     $: highlightIndex = files.indexOf(highlightFile);
     $: pieceAssetStyle = IMAGE_PIECE_SETS.has(pieceSet)
         ? PIECE_CODES.flatMap((code) => [`--piece-w${code}: url('/pieces/${pieceSet}/w${code}.svg')`, `--piece-b${code}: url('/pieces/${pieceSet}/b${code}.svg')`]).join(";")
@@ -66,9 +74,9 @@
         const turnColor = chess.turn() === "w" ? "white" : "black";
         const playerTurn = turnColor === playerColor;
         const config = {
-            movable: { enabled: !disabled && !engineThinking && playerTurn, color: playerColor, dests: destinations(), free: false },
+            movable: { enabled: !disabled && !terminal && !engineThinking && playerTurn, color: playerColor, dests: destinations(), free: false },
             turnColor,
-            viewOnly: disabled || engineThinking || !playerTurn || Boolean(promotionPending),
+            viewOnly: disabled || terminal || engineThinking || !playerTurn || Boolean(promotionPending),
         };
         // Chessground has already animated the pawn to its final rank when
         // the promotion chooser opens. Keep that visual move in place until
@@ -109,7 +117,7 @@
         // The parent intentionally disables normal input while the chooser is
         // open. A selected promotion is the one move that must still be
         // committed before that prop has flushed back down to this component.
-        if ((disabled && !allowDisabled) || engineThinking) return;
+        if ((disabled && !allowDisabled) || (terminal && !allowDisabled) || engineThinking) return;
         const playerColor = chess.turn();
         const move = chess.move({ from, to, promotion });
         if (!move) return;
@@ -129,20 +137,28 @@
         // that move leaves a live position, we still need a reply so the board
         // returns to the player's turn instead of looking frozen. A genuinely
         // terminal position has no reply and can resolve immediately.
-        const completesLine = moveCorrect && !reply && chess.isGameOver();
+        const terminalAfterMove = chess.isGameOver();
         dispatch("move", {
             letter: move.from[0].toUpperCase(),
             uci,
             reply: "",
             moveCorrect,
             mated: false,
-            pending: !completesLine,
+            terminal: terminalAfterMove,
+            pending: !terminalAfterMove,
         });
 
-        // Some puzzle lines end on the player's move (day 1649 is one). No
-        // engine reply is required in that case, so resolve immediately
-        // instead of briefly entering the thinking/locked state.
-        if (completesLine) return;
+        // No engine reply is possible once the player's move has ended the
+        // position. This also covers an off-line checkmate/stalemate: waiting
+        // for a reply that can never exist leaves the board looking frozen.
+        if (terminalAfterMove) {
+            // The move itself may have ended the position (for example a
+            // puzzle line whose final move is checkmate).  Refresh
+            // Chessground so it observes the terminal turn and cannot leave
+            // stale destinations that look like a frozen board.
+            setup();
+            return;
+        }
 
         engineThinking = true;
         setup();
@@ -169,12 +185,12 @@
                 // or a correct line can simply end before the opponent reply.
                 // Always recover with a legal deterministic move when one
                 // exists, so the board returns to the player's turn.
-                const fallbackReply = chooseReply(chess);
+                const fallbackReply = firstLegalReply(chess.fen());
                 replyApplied = Boolean(fallbackReply && apply(fallbackReply));
                 reply = replyApplied ? fallbackReply : "";
             }
             const matedAfterReply = isPlayerMatedAfterReply(chess, playerColor, reply);
-            dispatch("resolve", { index: actionIndex, reply, mated: matedAfterReply });
+            dispatch("resolve", { index: actionIndex, reply, mated: matedAfterReply, terminal: chess.isGameOver() });
         } finally {
             engineThinking = false;
             dispatch("thinking", { active: false });
@@ -238,6 +254,43 @@
         selectedSquare = isLegalOrigin ? square : "";
         dispatch("preview", { letter: selectedLetter });
     }
+    function clearSquareSelection() {
+        selectedLetter = "";
+        selectedSquare = "";
+        dispatch("preview", { letter: "" });
+    }
+    function squarePieceLabel(square) {
+        const piece = chess.get(square);
+        if (!piece) return "empty square";
+        const names = { p: "pawn", n: "knight", b: "bishop", r: "rook", q: "queen", k: "king" };
+        return `${piece.color === "w" ? "white" : "black"} ${names[piece.type]}`;
+    }
+    function squareLabel(square) {
+        const coordinate = square.toUpperCase();
+        const piece = squarePieceLabel(square);
+        if (selectedSquare === square) return `${coordinate}, ${piece}; selected starting square, activate again to clear`;
+        if (selectedSquare) return `${coordinate}, ${piece}; ${selectedDestinations.includes(square) ? "legal destination" : "not a legal destination"}`;
+        return `${coordinate}, ${piece}; ${chess.moves({ square, verbose: true }).length ? "select to choose a move" : "no legal move"}`;
+    }
+    function squareDisabled(square) {
+        if (disabled || engineThinking || promotionPending) return true;
+        if (selectedSquare) return selectedSquare !== square && !selectedDestinations.includes(square);
+        return chess.moves({ square, verbose: true }).length === 0;
+    }
+    function chooseSquare(square) {
+        if (squareDisabled(square)) return;
+        if (selectedSquare === square) {
+            clearSquareSelection();
+            return;
+        }
+        if (selectedSquare) {
+            if (selectedDestinations.includes(square)) after(selectedSquare, square);
+            return;
+        }
+        selectedSquare = square;
+        selectedLetter = square[0].toUpperCase();
+        dispatch("preview", { letter: selectedLetter });
+    }
     function fileHint(node) {
         const clear = () => {
             selectedLetter = "";
@@ -281,13 +334,16 @@
     });
 </script>
 
-<section class="chess" aria-label="Chess board. Use a mouse or touch to make A to H moves.">
+<section class="chess" aria-labelledby="chess-title" aria-describedby="chess-help">
+    <h2 id="chess-title" class="sr-only">Chess board</h2>
+    <p id="chess-help" class="sr-only">Select a legal piece and then its destination. Mouse and touch users can move directly on the board. Keyboard users can use the labelled square controls after the board.</p>
     <div class="board-grid">
         <div class="rank-labels" aria-hidden="true">{#each ranks as rank}<span>{rank}</span>{/each}</div>
         <div class="board" class:piece-set-glyph={pieceSet === "glyph"} class:piece-set-image={IMAGE_PIECE_SETS.has(pieceSet)} class:piece-set-cburnett={pieceSet === "cburnett"} style={pieceAssetStyle} use:fileHint>
             {#if highlightIndex >= 0}<div class="file-highlight" style={`left: ${highlightIndex * 12.5}%`}></div>{/if}
-            <Chessground bind:this={chessground} coordinates={false} config={{ movable: { events: { after } } }} />
-            {#if mated}<div class="mate-banner" role="status">You are mated.</div>{/if}
+            <div class="board-visual" aria-hidden="true"><Chessground bind:this={chessground} coordinates={false} config={{ movable: { events: { after } } }} /></div>
+            {#if mated}<div class="mate-banner" role="status">You are mated.</div>
+            {:else if terminal}<div class="mate-banner" role="status">Position ended.</div>{/if}
             {#if promotionPending}
                 <div class="promotion-layer" role="presentation" on:click|stopPropagation>
                     <div class="promotion-dialog" role="dialog" aria-modal="true" aria-labelledby="promotion-title" tabindex="-1">
@@ -314,12 +370,17 @@
         </div>
         <div class="file-labels" aria-hidden="true">{#each files as file}<span>{file}</span>{/each}</div>
     </div>
+    <div class="square-controls sr-only" aria-label="Keyboard chess move controls">
+        {#each boardSquares as square}
+            <button class="square-control" type="button" aria-label={squareLabel(square)} disabled={squareDisabled(square)} on:click={() => chooseSquare(square)}>{square.toUpperCase()}</button>
+        {/each}
+    </div>
     <span class="sr-only" aria-live="polite">{selectedLetter ? `This move writes ${selectedLetter}` : ""}</span>
 </section>
 <svelte:window on:keydown={handlePromotionKeydown} />
 
 <style>
-    .chess { width: min(100%, 32rem); margin: 1.75rem auto 0; }
+    .chess { width: min(100%, 32rem); margin: clamp(0.65rem, 4vw, 1.75rem) auto 0; }
     .board-grid { position: relative; display: block; padding-bottom: 1.55rem; }
     .board { position: relative; width: 100%; aspect-ratio: 1; overflow: hidden; background: #e9e5db; container-type: inline-size; }
     .file-highlight { position: absolute; z-index: 2; top: 0; bottom: 0; width: 12.5%; pointer-events: none; background: rgba(112, 45, 49, 0.1); box-shadow: inset 0 0 0 2px rgba(112, 45, 49, 0.55); }
@@ -341,7 +402,7 @@
     .rank-labels { position: absolute; top: 0; bottom: 1.55rem; left: -1.65rem; display: grid; grid-template-rows: repeat(8, 1fr); align-items: center; justify-items: end; width: 1.1rem; color: var(--burgundy); font: 700 0.72rem/1 var(--mono); font-variant-numeric: tabular-nums; }
     .file-labels { position: absolute; right: 0; bottom: 0; left: 0; height: 1.55rem; display: grid; grid-template-columns: repeat(8, 1fr); place-items: center; color: var(--burgundy); font: 700 0.72rem/1 var(--mono); letter-spacing: 0.03em; }
     .sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
-    .board :global(.cg-wrap) { width: 100%; height: 100%; }
+    .board-visual, .board-visual :global(.cg-wrap) { width: 100%; height: 100%; }
     .board :global(cg-board) { background-color: #e9e5db !important; background-image: url('/board-diagram.svg?v=problem-diagram') !important; background-position: center !important; background-size: cover !important; }
     .board :global(cg-board square.last-move) { background: rgba(112, 45, 49, 0.16); }
     .board :global(cg-board square.selected) { background: rgba(112, 45, 49, 0.28); box-shadow: inset 0 0 0 2px var(--burgundy); }
@@ -387,11 +448,15 @@
        leaves a pseudo-element behind; its exact SVGs are supplied locally. */
     .board.piece-set-cburnett :global(.cg-wrap piece) { display: block; color: transparent; }
     .board.piece-set-cburnett :global(.cg-wrap piece::before) { content: none; display: none; }
+    .square-controls { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 0.2rem; }
+    .square-control { min-width: 2.5rem; min-height: 2.5rem; padding: 0.2rem; font-size: 0.62rem; }
+    /* The board remains fluid between phone and desktop widths. Reserve only
+       the rank-label gutter instead of jumping to a separate 18.5rem board at
+       one arbitrary breakpoint. */
     @media (max-width: 420px) {
-        .chess { width: min(100%, 18.5rem); margin-top: 0.1rem; }
-        .board-grid { width: calc(100% - 3.3rem); margin-inline: auto; }
-    }
-    @media (max-width: 420px) and (max-height: 760px) {
-        .chess { width: min(100%, 18.5rem); margin-top: 0.2rem; }
+        .chess { width: min(100%, 32rem); margin-top: 0.45rem; }
+        .board-grid { width: calc(100% - 1.8rem); margin-inline: 1.8rem 0; }
+        .rank-labels { left: -1.8rem; }
+        .square-control { min-width: 2.25rem; min-height: 2.5rem; }
     }
 </style>

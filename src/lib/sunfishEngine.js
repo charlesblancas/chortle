@@ -1,4 +1,3 @@
-const ENGINE_URL = "/engines/sunfish/sunfish.js";
 const SEARCH_TIMEOUT_MS = 300;
 const READY_TIMEOUT_MS = 1000;
 
@@ -23,7 +22,10 @@ function reset() {
 function ensureWorker() {
     if (worker) return ready;
 
-    worker = new Worker(ENGINE_URL);
+    // Let Vite fingerprint and relocate the worker with the rest of the
+    // production assets. A root-relative public URL breaks when the app is
+    // deployed below a path and bypasses cache invalidation.
+    worker = new Worker(new URL("./sunfish.worker.js", import.meta.url), { type: "classic" });
     ready = new Promise((resolve, reject) => {
         resolveReady = resolve;
         rejectReady = reject;

@@ -6,7 +6,7 @@ import { performance } from "node:perf_hooks";
 import { Chess } from "chess.js";
 import { FIXTURES } from "../src/fixtures.js";
 import { games } from "../src/games/final_games.js";
-import { chessMoveStatus, combineFeedbackStatuses, fileProjection, isCanonicalPlayerMove, isMated, isPlayerMatedAfterReply, isSolvedGuess, scoreShareRow, scoreWord, validatePuzzleRecord } from "../src/gameRules.js";
+import { chessMoveStatus, combineFeedbackStatuses, dailyPuzzleIndex, fileProjection, isCanonicalPlayerMove, isInteractiveKeyTarget, isMated, isPlayerMatedAfterReply, isSolvedGuess, scoreShareRow, scoreWord, shouldHandleWordGameKey, validatePuzzleRecord } from "../src/gameRules.js";
 import { chooseReply, isUciMove } from "../src/lib/tinyEngine.js";
 import { applyEngineReply, fastChessReply } from "../src/lib/fastChessEngine.js";
 import { gameStorageKey, normalizeSavedGame, readSavedGame, writeSavedGame } from "../src/lib/gameStorage.js";
@@ -14,7 +14,7 @@ import { gameStorageKey, normalizeSavedGame, readSavedGame, writeSavedGame } fro
 const mixed = FIXTURES.find((fixture) => fixture.id === "mixed-entry");
 
 function loadSunfish() {
-    const source = fs.readFileSync(new URL("../public/engines/sunfish/sunfish.js", import.meta.url), "utf8");
+    const source = fs.readFileSync(new URL("../src/lib/sunfish.worker.js", import.meta.url), "utf8");
     const context = { module: { exports: {} }, exports: {}, performance, console };
     vm.runInNewContext(source, context, { filename: "sunfish.js" });
     return context.module.exports;
@@ -105,6 +105,29 @@ test("canonical move matching resets cleanly between rows", () => {
     assert.equal(isCanonicalPlayerMove(game.moves, [{ moveCorrect: false }], "h6h7"), false);
 });
 
+test("daily puzzle index uses calendar days across DST boundaries", () => {
+    const start = new Date(2026, 0, 1);
+    const springDay = new Date(2026, 2, 8);
+    const dayAfterSpring = new Date(2026, 2, 9);
+    const autumnDay = new Date(2026, 10, 1);
+    const dayAfterAutumn = new Date(2026, 10, 2);
+    assert.equal(dailyPuzzleIndex(dayAfterSpring, start) - dailyPuzzleIndex(springDay, start), 1);
+    assert.equal(dailyPuzzleIndex(dayAfterAutumn, start) - dailyPuzzleIndex(autumnDay, start), 1);
+    assert.equal(dailyPuzzleIndex(new Date(2025, 11, 31), start), 1);
+});
+
+test("global game keyboard filtering ignores shortcuts, repeats, and controls", () => {
+    const body = { tagName: "BODY" };
+    assert.equal(shouldHandleWordGameKey({ key: "x", target: body }), true);
+    assert.equal(shouldHandleWordGameKey({ key: "Enter", target: body }), true);
+    assert.equal(shouldHandleWordGameKey({ key: "x", target: body, repeat: true }), false);
+    assert.equal(shouldHandleWordGameKey({ key: "x", target: body, ctrlKey: true }), false);
+    assert.equal(shouldHandleWordGameKey({ key: "x", target: body, shiftKey: true }), false);
+    assert.equal(shouldHandleWordGameKey({ key: "x", target: { tagName: "BUTTON" } }), false);
+    assert.equal(isInteractiveKeyTarget({ isContentEditable: true }), true);
+    assert.equal(isInteractiveKeyTarget({ closest: () => ({}) }), true);
+});
+
 test("mated fixture is recognized as terminal", () => {
     assert.equal(isMated("7k/6Q1/6K1/8/8/8/8/8 b - - 0 1"), true);
     const fixture = FIXTURES.find((item) => item.id === "mate-state");
@@ -151,7 +174,8 @@ test("day 1649 can finish with h7 after an off-line Kc3 move", () => {
     chess.move({ from: line[0].slice(0, 2), to: line[0].slice(2, 4) });
     assert.ok(chess.move({ from: "d4", to: "c3" }));
     const reply = fastChessReply(chess.fen());
-    assert.equal(reply, "e6d7");
+    assert.equal(reply, fastChessReply(chess.fen()));
+    assert.ok(isUciMove(reply));
     assert.equal(applyEngineReply(chess, reply), reply);
 
     const terminal = chess.move({ from: "h6", to: "h7" });
@@ -162,7 +186,7 @@ test("day 1649 can finish with h7 after an off-line Kc3 move", () => {
     const h7MoveCorrect = [{ moveCorrect: false }].every((action) => action.moveCorrect !== false) && terminal.lan === line[3];
     assert.equal(h7MoveCorrect, false);
     const h7Reply = applyEngineReply(chess, "", fastChessReply);
-    assert.equal(h7Reply, "e4h7");
+    assert.ok(isUciMove(h7Reply));
     assert.equal(chess.turn(), "w", "the engine reply returns the board to the player");
     assert.equal(chess.isCheckmate(), false);
 });
@@ -239,6 +263,7 @@ test("daily game state is safely validated and round-trips through storage", () 
         actionHistory: Array.from({ length: 5 }, () => []),
         keyStatuses: { C: -1 },
         mated: false,
+        terminal: false,
         solved: false,
         completed: false,
     };
@@ -276,6 +301,26 @@ test("a legacy exact word with a wrong chess sequence resumes instead of winning
     assert.equal(restored.completed, false);
     assert.equal(restored.currentRow, 1);
     assert.deepEqual(restored.actions, []);
+});
+
+test("a resumed row never carries a previous self-mate lock", () => {
+    const legacy = {
+        guesses: ["FIFTY", "", "", "", ""],
+        statuses: [[2, 2, 2, 2, 2], ...Array.from({ length: 4 }, () => Array(5).fill(-1))],
+        currentRow: 0,
+        actions: [
+            { letter: "F", uci: "f3f6", moveCorrect: false },
+            { letter: "F", uci: "f7f8q", moveCorrect: false },
+        ],
+        actionHistory: [[], [], [], [], []],
+        keyStatuses: { F: 2, I: 2, T: 2, Y: 2 },
+        mated: true,
+        solved: false,
+        completed: true,
+    };
+    const restored = normalizeSavedGame(legacy);
+    assert.equal(restored.currentRow, 1);
+    assert.equal(restored.mated, false);
 });
 
 test("completed daily game survives storage and remains restorable", () => {

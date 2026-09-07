@@ -4,12 +4,21 @@
     export let moveStatus = status;
     export let ghost = false;
     export let move = "";
+    const statusNames = ["not in the answer", "in the answer, but in another position", "correct position"];
+    $: wordStatus = status >= 0 ? statusNames[status] : "not scored";
+    $: chessStatus = moveStatus >= 0 ? statusNames[moveStatus].replace("answer", "chess line").replace("position", "move") : "not scored";
+    $: tileLabel = letter
+        ? `${letter}${move ? `, chess move ${move}` : ""}; letter ${wordStatus}${move ? `; chess move ${chessStatus}` : ""}`
+        : "Empty letter tile";
 </script>
 
 <div
     class:ghost
-    aria-label={move ? `${letter}, move ${move}` : undefined}
-    title={move ? `Move ${move}` : undefined}
+    data-status={status >= 0 ? status : "empty"}
+    data-move-status={moveStatus >= 0 ? moveStatus : "empty"}
+    role="img"
+    aria-label={tileLabel}
+    title={move ? `Move ${move}. Letter ${wordStatus}. Chess move ${chessStatus}.` : tileLabel}
 >
     <span class:green={status === 2} class:yellow={status === 1} class:gray={status === 0} class="letter">{letter}</span>
     <span class:green={moveStatus === 2} class:yellow={moveStatus === 1} class:gray={moveStatus === 0} class="move" aria-hidden="true">{move}</span>
@@ -17,6 +26,7 @@
 
 <style>
     div {
+        position: relative;
         width: clamp(2.7rem, 10vw, 3.35rem);
         height: clamp(2.7rem, 10vw, 3.35rem);
         border: 1px solid var(--ink);
@@ -50,14 +60,26 @@
         background-color: var(--gray);
         color: var(--panel);
     }
+    /* A small non-colour marker makes scored tiles distinguishable for users
+       who cannot reliably separate the three fills. */
+    div[data-status="2"]::after,
+    div[data-status="1"]::after,
+    div[data-status="0"]::after {
+        position: absolute;
+        top: 0.08rem;
+        right: 0.14rem;
+        color: currentColor;
+        font: 700 0.55rem/1 var(--sans);
+        opacity: 0.92;
+        pointer-events: none;
+    }
+    div[data-status="2"]::after { content: "✓"; }
+    div[data-status="1"]::after { content: "•"; }
+    div[data-status="0"]::after { content: "×"; }
 
     @media (max-width: 420px) {
-        div { width: 2rem; height: 2rem; }
-        .letter { font-size: 0.88rem; }
-    }
-    @media (max-width: 420px) and (max-height: 760px) {
-        div { width: 1.55rem; height: 1.55rem; }
-        .letter { font-size: 0.7rem; }
-        .move { font-size: 0.31rem; }
+        div { width: clamp(2.15rem, 13vw, 2.75rem); height: clamp(2.15rem, 13vw, 2.75rem); }
+        .letter { font-size: clamp(0.95rem, 4.5vw, 1.25rem); }
+        .move { font-size: clamp(0.36rem, 1.7vw, 0.48rem); }
     }
 </style>

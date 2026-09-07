@@ -4,7 +4,7 @@ import { performance } from "node:perf_hooks";
 import { Chess } from "chess.js";
 import { games } from "../src/games/final_games.js";
 
-const source = fs.readFileSync(new URL("../public/engines/sunfish/sunfish.js", import.meta.url), "utf8");
+const source = fs.readFileSync(new URL("../src/lib/sunfish.worker.js", import.meta.url), "utf8");
 const context = { module: { exports: {} }, exports: {}, performance, console };
 vm.runInNewContext(source, context, { filename: "sunfish.js" });
 const sunfish = context.module.exports;

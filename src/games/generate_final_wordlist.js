@@ -92,10 +92,11 @@ for (const row of output) {
   ].map(csv).join(","));
 }
 fs.writeFileSync(outPath, `${lines.join("\n")}\n`);
+// Keep metadata in the CSV for curation, but ship only fields needed by the
+// client. This trims generated runtime data without changing the answer pool.
 const gameObjects = output.filter((row) => row.puzzleId).map((row) => ({
-  word: row.word, fen: row.fen, moves: row.moves, lichessUrl: row.gameUrl, puzzleId: row.puzzleId,
-  rating: Number(row.rating), popularity: Number(row.popularity), themes: row.themes,
+  word: row.word, fen: row.fen, moves: row.moves, puzzleId: row.puzzleId,
 }));
-fs.writeFileSync(jsOutPath, `export const games = ${JSON.stringify(gameObjects, null, 2)};\n`);
+fs.writeFileSync(jsOutPath, `export const games = ${JSON.stringify(gameObjects)};\n`);
 fs.writeFileSync(possibilitiesOutPath, `export const possibilities = ${JSON.stringify(words.map((row) => row.word), null, 2)};\n`);
 console.log(JSON.stringify({ words: words.length, scannedPuzzles: scanned - 1, output: output.length, omittedNoMatchingLine: missing, exact: output.filter((row) => row.matchStatus === "exact").length, outPath, jsOutPath, possibilitiesOutPath }, null, 2));

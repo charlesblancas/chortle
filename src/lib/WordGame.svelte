@@ -8,14 +8,15 @@
     import { games } from "../games/final_games";
     import { possibilities } from "../games/possibilities";
     import { gameOver, showInstructions } from "../stores";
-    import { isSolvedGuess, playerMoves, scoreWord } from "../gameRules";
-    import { gameStorageKey, readSavedGame, writeSavedGame } from "./gameStorage";
+    import { dailyPuzzleIndex, isSolvedGuess, playerMoves, scoreWord, shouldHandleWordGameKey } from "../gameRules";
+    import { gameStorageKey, readSavedGame, removeSavedGame, safeStorage, writeSavedGame } from "./gameStorage";
     import { onMount, tick } from "svelte";
 
     const FILE_LETTERS = "ABCDEFGH";
     export let fixture = null;
     export let dayOverride = NaN;
     export let pieceSet = "cburnett";
+    const storage = safeStorage();
     const ROWS = 5;
     let guesses = Array(ROWS).fill("");
     if (fixture?.initialGuess) guesses[0] = fixture.initialGuess.toUpperCase();
@@ -30,15 +31,14 @@
     let highlightFile = "";
     let engineThinking = false;
     let messageTimer;
-    const dailyStart = new Date("2026-09-01T00:00:00");
-    const today = new Date(new Date().toDateString());
-    const day = Math.max(1, Math.floor((today - dailyStart) / 86400000) + 1);
+    const day = dailyPuzzleIndex();
     const selectedDay = Number.isFinite(dayOverride) ? Math.max(1, Math.floor(dayOverride)) : day;
     const dailyGame = games[(selectedDay - 1) % games.length];
     $: game = fixture?.game || dailyGame;
     $: answer = game.word.toUpperCase();
     $: solutionMoves = playerMoves(game.moves);
     let mated = fixture?.mated || false;
+    let terminal = fixture?.terminal || fixture?.mated || false;
     let promotionPending = false;
     let hydrated = false;
     const dateLabel = new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "long", year: "numeric" }).format(new Date());
@@ -46,12 +46,12 @@
 
     function saveGame(completed = $gameOver) {
         if (!hydrated || fixture) return;
-        writeSavedGame(localStorage, storageKey, { guesses, statuses, currentRow, actions, actionHistory, keyStatuses, mated, solved, completed });
+        writeSavedGame(storage, storageKey, { guesses, statuses, currentRow, actions, actionHistory, keyStatuses, mated, terminal, solved, completed });
     }
 
     onMount(() => {
         if (!fixture) {
-            const saved = readSavedGame(localStorage, storageKey);
+            const saved = readSavedGame(storage, storageKey);
             if (saved) {
                 guesses = saved.guesses;
                 statuses = saved.statuses;
@@ -60,6 +60,7 @@
                 actionHistory = saved.actionHistory;
                 keyStatuses = saved.keyStatuses;
                 mated = saved.mated;
+                terminal = saved.terminal || saved.mated;
                 solved = saved.solved;
                 // Let child components receive the restored rows before the
                 // result modal subscribes to the completed state.  This keeps
@@ -102,10 +103,12 @@
     }
 
     function handleWindowKeydown(event) {
-        if ($showInstructions || $gameOver || promotionPending) {
-            event.preventDefault();
-            return;
-        }
+        // Let open dialogs own Tab, Escape, Enter, and button shortcuts.  In
+        // particular, preventing these here breaks the modal focus trap and
+        // can make the promotion chooser impossible to cancel.
+        if ($showInstructions || $gameOver || promotionPending) return;
+        if (!shouldHandleWordGameKey(event)) return;
+        event.preventDefault();
         input(event.key);
     }
 
@@ -114,6 +117,7 @@
         previewLetter = "";
         actions = [...actions, event.detail];
         mated = event.detail.mated || false;
+        terminal = event.detail.terminal || false;
         guesses[currentRow] += event.detail.letter;
         guesses = guesses;
         if (!event.detail.pending) saveGame();
@@ -123,9 +127,10 @@
         const action = actions[event.detail.index];
         if (!action) return;
         actions = actions.map((item, index) => index === event.detail.index
-            ? { ...item, reply: event.detail.reply, mated: event.detail.mated, pending: false }
+            ? { ...item, reply: event.detail.reply, mated: event.detail.mated, terminal: event.detail.terminal, pending: false }
             : item);
         mated = event.detail.mated || false;
+        terminal = event.detail.terminal || false;
         saveGame();
     }
 
@@ -141,7 +146,8 @@
         guesses[currentRow] = guess.slice(0, -1);
         if (FILE_LETTERS.includes(letter)) {
             actions = actions.slice(0, -1);
-            if (mated) mated = false;
+            mated = false;
+            terminal = false;
         }
         guesses = guesses;
         saveGame();
@@ -166,16 +172,20 @@
         if (result.every((x) => x === 2)) message = "Word right. Replay it with the right board moves.";
         currentRow += 1;
         actions = [];
+        // A reply can checkmate the player.  That only locks the current
+        // board row; the next guess starts from the puzzle position again.
+        mated = false;
+        terminal = false;
+        promotionPending = false;
         saveGame(false);
     }
 
     function resetDebugGame() {
-        if (!fixture) localStorage.removeItem(storageKey);
+        if (!fixture) removeSavedGame(storage, storageKey);
         window.location.reload();
     }
 </script>
 
-<GameError {message} />
 <Instructions />
 <div class="meta"><span>Puzzle {String(selectedDay).padStart(4, "0")}</span><span>{dateLabel}</span><span>Attempt {currentRow + 1}/{ROWS}</span></div>
 <GameOver word={answer} {statuses} {guesses} {actionHistory} {solutionMoves} {solved} day={selectedDay} attempts={currentRow + 1} on:reset={resetDebugGame} />
@@ -184,7 +194,8 @@
         <Guess status={statuses[index]} word={guess} active={index === currentRow} previewLetter={index === currentRow ? previewLetter : ""} actions={index === currentRow ? actions : actionHistory[index]} {solutionMoves} />
     {/each}
 </div>
-<Chess fen={game.fen} movesString={game.moves} {actions} {mated} {pieceSet} disabled={mated || engineThinking || promotionPending || guesses[currentRow].length >= 5} {highlightFile} on:move={chessLetter} on:resolve={resolveChessMove} on:thinking={(event) => engineThinking = event.detail.active} on:promotion={handlePromotion} on:preview={(event) => previewLetter = event.detail.letter} />
+<GameError {message} />
+<Chess fen={game.fen} movesString={game.moves} {actions} {mated} {terminal} {pieceSet} disabled={mated || terminal || engineThinking || promotionPending || guesses[currentRow].length >= 5} {highlightFile} on:move={chessLetter} on:resolve={resolveChessMove} on:thinking={(event) => engineThinking = event.detail.active} on:promotion={handlePromotion} on:preview={(event) => previewLetter = event.detail.letter} />
 {#if guesses[currentRow].length >= 5 && !$gameOver}<p class="row-ready">Row complete · press Enter to submit or Backspace to revise.</p>{/if}
 <p class="rule">A–H are played from the board.</p>
 <Keyboard {keyStatuses} on:key={(event) => input(event.detail.key)} />

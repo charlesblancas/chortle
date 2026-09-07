@@ -2,35 +2,35 @@
     import Modal from "./Modal.svelte";
     import { showInstructions } from "../stores";
     import { onMount } from "svelte";
+    import { safeStorage } from "./gameStorage";
 
     const INSTRUCTIONS_SEEN_KEY = "chortle:instructions-seen-v1";
-    let showInstructionsValue;
-    showInstructions.subscribe((value) => { showInstructionsValue = value; });
+    const storage = safeStorage();
     const closeInstructions = () => showInstructions.set(false);
     onMount(() => {
-        const seenBefore = localStorage.getItem(INSTRUCTIONS_SEEN_KEY);
+        const seenBefore = storage.getItem(INSTRUCTIONS_SEEN_KEY);
         if (seenBefore) {
             showInstructions.set(false);
         } else {
-            localStorage.setItem(INSTRUCTIONS_SEEN_KEY, "1");
+            storage.setItem(INSTRUCTIONS_SEEN_KEY, "1");
             showInstructions.set(true);
         }
-        const onKeydown = (event) => { if (event.key === "Escape" && showInstructionsValue) closeInstructions(); };
+        const onKeydown = (event) => { if (event.key === "Escape" && $showInstructions) closeInstructions(); };
         window.addEventListener("keydown", onKeydown);
         return () => window.removeEventListener("keydown", onKeydown);
     });
 </script>
 
-<Modal show={showInstructionsValue}>
+<Modal show={$showInstructions}>
     <button class="close" type="button" aria-label="Close instructions" title="Close instructions" on:click={closeInstructions}>×</button>
     <p class="eyebrow">How to play</p>
     <h1>Find the word through the board.</h1>
-    <p class="intro">Wordle, except A–H come from chess moves.</p>
+    <p class="intro">Guess the five-letter answer in five rows. You win when every letter is green and every A–H chess move is correct.</p>
     <ol>
-        <li>Type any letter outside A–H.</li>
-        <li>For A–H, move a piece from that file.</li>
-        <li>Backspace removes your latest letter and move.</li>
-        <li>Letter feedback is on top. For A–H, chess-move feedback is underneath.</li>
+        <li>Type letters outside A–H with your keyboard.</li>
+        <li>For A–H, use the board: choose a piece in that lettered column, then its destination.</li>
+        <li>Backspace removes your latest letter or chess move.</li>
+        <li>Each tile shows letter feedback above and chess-move feedback below.</li>
     </ol>
     <div class="legend" aria-label="Color key">
         <span class="swatch green">Green <small>correct here</small></span>
@@ -64,7 +64,7 @@
     .example-tile { width: 2.75rem; height: 2.75rem; flex: 0 0 auto; overflow: hidden; border: 1px solid var(--ink); display: grid; grid-template-rows: minmax(0, 1fr) minmax(0, 0.42fr); text-align: center; }
     .example-letter { display: grid; place-items: center; background: var(--green); color: var(--panel); font: 700 1.25rem/1 var(--sans); }
     .example-move { display: grid; place-items: center; background: var(--yellow); color: var(--ink); font: 700 0.42rem/1 var(--mono); white-space: nowrap; }
-    .close { position: absolute; top: 0.65rem; right: 0.7rem; min-width: 0; width: 1.6rem; height: 1.6rem; padding: 0; border: 0; color: var(--muted); font: 400 1.45rem/1 var(--sans); }
+    .close { position: absolute; top: 0.55rem; right: 0.6rem; min-width: 0; width: 2.5rem; height: 2.5rem; padding: 0; border: 0; color: var(--muted); font: 400 1.45rem/1 var(--sans); }
     .close:hover { color: var(--burgundy); background: transparent; border-color: transparent; }
     @media (max-width: 420px) {
         h1 { font-size: 1.65rem; margin-bottom: 0.55rem; padding-bottom: 0.5rem; }

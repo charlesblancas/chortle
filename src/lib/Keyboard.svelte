@@ -9,19 +9,19 @@
     const bottomRow = ["Enter", "z", "x", "c", "v", "b", "n", "m", "Backspace"];
 </script>
 
-<div class="keyboard">
-    <div class="row">
+<div class="keyboard" aria-label="Letter and action keyboard">
+    <div class="row row-top">
         {#each topRow as key}
             <Key {key} status={keyStatuses[key.toUpperCase()] ?? -1} boardKey={"abcdefgh".includes(key)} on:key />
         {/each}
     </div>
-    <div class="row">
+    <div class="row row-middle">
         {#each middleRow as key}
             <Key {key} status={keyStatuses[key.toUpperCase()] ?? -1} boardKey={"abcdefgh".includes(key)} on:key />
         {/each}
     </div>
 
-    <div class="row">
+    <div class="row row-bottom">
         {#each bottomRow as key}
             <Key {key} status={keyStatuses[key.toUpperCase()] ?? -1} boardKey={"abcdefgh".includes(key)} on:key />
         {/each}
@@ -30,11 +30,15 @@
 
 <style>
     .row {
-        display: flex;
+        display: grid;
         align-items: center;
         justify-content: center;
         gap: 0.22rem;
+        width: min(100%, 32rem);
     }
+    .row-top { grid-template-columns: repeat(10, minmax(0, 1fr)); }
+    .row-middle { grid-template-columns: repeat(9, minmax(0, 1fr)); padding-inline: 5%; }
+    .row-bottom { grid-template-columns: 1.45fr repeat(7, minmax(0, 1fr)) 1.45fr; }
 
     .keyboard {
         position: relative;
@@ -52,11 +56,8 @@
     }
     @media (max-width: 420px) {
         .row { gap: 0.15rem; }
-        .keyboard { margin-top: 0.25rem; padding: 0.3rem 0.35rem 0; }
-        .keyboard :global(.key) { min-height: 2.25rem; margin-bottom: 0.1rem; }
-    }
-    @media (max-width: 420px) and (max-height: 760px) {
-        .keyboard { padding-bottom: 0; }
-        .keyboard :global(.key) { min-height: 2.1rem; margin-bottom: 0.05rem; }
+        .keyboard { margin-top: 0.25rem; padding: 0.3rem 0.35rem 0.2rem; }
+        .keyboard :global(.key) { min-width: 0; min-height: 2.45rem; margin-bottom: 0.1rem; padding-inline: 0.12rem; font-size: 0.72rem; }
+        .keyboard :global(.utility-key) { font-size: 1.05rem; }
     }
 </style>

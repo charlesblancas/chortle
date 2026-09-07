@@ -2,6 +2,10 @@
 
 Vendored from [foo123/sunfish.js](https://github.com/foo123/sunfish.js), a JavaScript port of [Thomas Ahle's Sunfish](https://github.com/thomasahle/sunfish), on 1 September 2026.
 
+The source is kept in `src/lib/sunfish.worker.js` so Vite emits a hashed
+worker asset. This directory is retained in the published site solely for
+the corresponding license and attribution notice.
+
 Chortle's copy is formatted and modified to:
 
 - accept arbitrary UCI `position fen` positions;

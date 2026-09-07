@@ -1,4 +1,5 @@
-import { ai, moves } from "js-chess-engine";
+import { Chess } from "chess.js";
+import { chooseReply } from "./tinyEngine.js";
 
 export function isUciMove(move) {
     return /^[a-h][1-8][a-h][1-8][qrbn]?$/.test(move || "");
@@ -10,22 +11,34 @@ export function isUciMove(move) {
 // position must always produce the same reply.
 export function fastChessReply(fen) {
     try {
-        const result = ai(fen, { level: 1, randomness: 0, play: false });
-        const move = result?.move;
-        const [from, to] = Object.entries(move || {})[0] || [];
-        const candidate = from && to ? `${from.toLowerCase()}${to.toLowerCase()}` : "";
+        const chess = new Chess(fen);
+        const candidate = chooseReply(chess);
         if (isUciMove(candidate)) return candidate;
-    } catch {
-        // A malformed or unusual puzzle position should still resolve with a
-        // legal deterministic reply instead of leaving the board locked.
-    }
 
-    const legal = moves(fen);
-    const [from, destinations] = Object.entries(legal)
-        .sort(([a], [b]) => a.localeCompare(b))[0] || [];
-    const to = Array.isArray(destinations) ? [...destinations].sort()[0] : "";
-    const safe = from && to ? `${from.toLowerCase()}${to.toLowerCase()}` : "";
-    return isUciMove(safe) ? safe : "";
+        // Keep a total deterministic fallback for terminal/odd positions.
+        // chess.js owns legality, while lexical ordering makes a tie stable.
+        const legal = chess.moves({ verbose: true })
+            .map((move) => `${move.from}${move.to}${move.promotion || ""}`)
+            .sort();
+        return legal.find(isUciMove) || "";
+    } catch {
+        return "";
+    }
+}
+
+// Used only when the worker misses its short deadline.  Keep this recovery
+// path bounded by move generation so a timeout can never turn into another
+// long main-thread search. Lexical ordering makes the result reproducible.
+export function firstLegalReply(fen) {
+    try {
+        const chess = new Chess(fen);
+        return chess.moves({ verbose: true })
+            .map((move) => `${move.from}${move.to}${move.promotion || ""}`)
+            .sort()
+            .find(isUciMove) || "";
+    } catch {
+        return "";
+    }
 }
 
 /**

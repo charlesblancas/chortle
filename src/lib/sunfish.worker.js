@@ -692,7 +692,10 @@
     "function" === typeof importScripts &&
     navigator instanceof WorkerNavigator;
   /*!ADDED!*/
-  const perf = isNode ? require("node:perf_hooks").performance : performance;
+  // The browser worker and the Node benchmark both provide performance. Keep
+  // this vendored source free of a Node-only import so Vite can fingerprint
+  // it without externalizing `node:perf_hooks` into the browser bundle.
+  const perf = performance;
   const nextTick = isWebWorker
     ? Promise.resolve().then.bind(Promise.resolve())
     : function (then) {

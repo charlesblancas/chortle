@@ -3,12 +3,14 @@
     import DebugFixtures from "./lib/DebugFixtures.svelte";
     import { fixtureById } from "./fixtures";
     import { showInstructions } from "./stores";
+    import { safeStorage } from "./lib/gameStorage";
 
     const fixture = import.meta.env.DEV ? fixtureById(new URLSearchParams(window.location.search).get("fixture")) : null;
     const dayOverride = import.meta.env.DEV ? Number(new URLSearchParams(window.location.search).get("day")) : NaN;
     const PIECE_SET_KEY = "chortle:piece-set-v2";
-    const PIECE_SETS = new Set(["glyph", "chessnut", "cburnett", "berlin", "leipzig", "alpha", "merida", "maestro", "fantasy", "caliente", "horsey", "pixel", "mono"]);
-    const savedPieceSet = localStorage.getItem(PIECE_SET_KEY);
+    const PIECE_SETS = new Set(["glyph", "chessnut", "cburnett", "merida", "mono"]);
+    const storage = safeStorage();
+    const savedPieceSet = storage.getItem(PIECE_SET_KEY);
     let pieceSet = PIECE_SETS.has(savedPieceSet) ? savedPieceSet : "cburnett";
 
     function toggleInstructions() {
@@ -17,7 +19,7 @@
 
     function selectPieceSet(event) {
         pieceSet = event.detail;
-        localStorage.setItem(PIECE_SET_KEY, pieceSet);
+        storage.setItem(PIECE_SET_KEY, pieceSet);
     }
 </script>
 
@@ -37,7 +39,7 @@
     .edition { margin: 0; color: var(--muted); font: 700 0.6rem/1 var(--sans); letter-spacing: 0.14em; text-transform: uppercase; }
     .title { margin: 0.25rem 0 0; font: 700 clamp(2.25rem, 7vw, 3.35rem)/0.88 var(--display); letter-spacing: -0.07em; text-transform: uppercase; }
     .beta { display: inline-block; margin-left: 0.18em; color: var(--burgundy); font: 700 0.24em/1 var(--mono); letter-spacing: 0.12em; vertical-align: middle; }
-    .help { position: absolute; top: 0.18rem; right: 0; width: 2rem; height: 2rem; min-width: 0; padding: 0; border: 1px solid var(--line); color: var(--muted); font: 700 1rem/1 var(--sans); letter-spacing: 0; }
+    .help { position: absolute; top: 0.18rem; right: 0; width: 2.75rem; height: 2.75rem; min-width: 0; padding: 0; border: 1px solid var(--line); color: var(--muted); font: 700 1rem/1 var(--sans); letter-spacing: 0; }
     @media (hover: hover) { .help:hover { color: var(--panel); border-color: var(--burgundy); } }
     @media (max-width: 420px) {
         main { width: min(calc(100% - 1.25rem), 39rem); padding: 0.3rem 0.35rem 0; }
