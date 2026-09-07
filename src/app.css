@@ -4,14 +4,14 @@
   --panel-raised: #fffef9;
   --ink: #263238;
   --text: #263238;
-  --muted: #697176;
+  --muted: #626b6f;
   --line: #b0b5b3;
   --burgundy: #702d31;
   --blue: #405d69;
   /* Teal + amber stay distinct for common red/green color-vision deficiencies. */
   --yellow: #d79b00;
   --green: #00796b;
-  --gray: #827f76;
+  --gray: #6d6b63;
   --accent: #405d69;
   --sans: Georgia, "Times New Roman", serif;
   --display: Georgia, "Times New Roman", serif;

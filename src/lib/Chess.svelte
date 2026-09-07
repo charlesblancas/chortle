@@ -39,6 +39,8 @@
     let engineThinking = false;
     let promotionPending = null;
     let promotionFirstButton;
+    let promotionDialog;
+    let chessRoot;
     let boardVersion = 0;
     let pointerStart = null;
     let pointerMoved = false;
@@ -258,10 +260,12 @@
     }
     function cancelPromotion() {
         if (!promotionPending) return;
+        const origin = promotionPending.from;
         promotionPending = null;
         dispatch("promotion", { active: false });
         chessground.set({ fen: chess.fen(), orientation, coordinates: false });
         setup();
+        tick().then(() => chessRoot?.querySelector(`[data-square="${origin}"]`)?.focus());
     }
     function focusPromotionButton(node, enabled) {
         if (!enabled) return {};
@@ -274,10 +278,28 @@
         };
     }
     function handlePromotionKeydown(event) {
-        if (!promotionPending || event.key !== "Escape") return;
-        event.preventDefault();
-        event.stopPropagation();
-        cancelPromotion();
+        if (!promotionPending) return;
+        if (event.key === "Escape") {
+            event.preventDefault();
+            event.stopPropagation();
+            cancelPromotion();
+            return;
+        }
+        if (event.key !== "Tab") return;
+        const focusable = promotionDialog ? [...promotionDialog.querySelectorAll("button:not([disabled])")] : [];
+        if (!focusable.length) {
+            event.preventDefault();
+            return;
+        }
+        const first = focusable[0];
+        const last = focusable.at(-1);
+        if (event.shiftKey && (document.activeElement === first || !promotionDialog.contains(document.activeElement))) {
+            event.preventDefault();
+            last.focus();
+        } else if (!event.shiftKey && (document.activeElement === last || !promotionDialog.contains(document.activeElement))) {
+            event.preventDefault();
+            first.focus();
+        }
     }
     function showFile(event) {
         if (!event.clientX || !event.clientY) return;
@@ -405,7 +427,7 @@
     });
 </script>
 
-<section class="chess" aria-labelledby="chess-title" aria-describedby="chess-help" use:fileHint>
+<section class="chess" bind:this={chessRoot} aria-labelledby="chess-title" aria-describedby="chess-help" use:fileHint>
     <h2 id="chess-title" class="sr-only">Chess board</h2>
     <p id="chess-help" class="sr-only">Select a legal piece and then its destination. Mouse and touch users can move directly on the board. Keyboard users can use the labelled square controls after the board.</p>
     <div class="board-grid">
@@ -413,11 +435,11 @@
         <div class="board" class:piece-set-glyph={pieceSet === "glyph"} class:piece-set-image={IMAGE_PIECE_SETS.has(pieceSet)} class:piece-set-cburnett={pieceSet === "cburnett"} style={pieceAssetStyle}>
             {#if highlightIndex >= 0}<div class="file-highlight" style={`left: ${highlightIndex * 12.5}%`}></div>{/if}
             <div class="board-visual" aria-hidden="true" on:pointerdown={rememberPointer} on:pointermove={trackPointer} on:click={handleBoardClick}><Chessground bind:this={chessground} coordinates={false} config={{ movable: { events: { after } } }} /></div>
-            {#if mated}<div class="mate-banner" role="status">You are mated.</div>
-            {:else if terminal}<div class="mate-banner" role="status">Position ended.</div>{/if}
+            {#if mated}<div class="mate-banner" role="status">You are mated. Press Backspace to revise your last move.</div>
+            {:else if terminal}<div class="mate-banner" role="status">Position ended. Press Backspace to revise your last move.</div>{/if}
             {#if promotionPending}
                 <div class="promotion-layer" role="presentation" on:click|stopPropagation>
-                    <div class="promotion-dialog" role="dialog" aria-modal="true" aria-labelledby="promotion-title" tabindex="-1">
+                    <div class="promotion-dialog" bind:this={promotionDialog} role="dialog" aria-modal="true" aria-labelledby="promotion-title" tabindex="-1">
                         <p id="promotion-title" class="promotion-title">Choose a piece</p>
                         <p class="promotion-move">{promotionPending.from.toUpperCase()} → {promotionPending.to.toUpperCase()}</p>
                         <div class="promotion-options">
@@ -443,7 +465,7 @@
     </div>
     <div class="square-controls sr-only" aria-label="Keyboard chess move controls">
         {#each boardSquares as square}
-            <button class="square-control" type="button" aria-label={squareLabel(square, squareStateSignature)} disabled={squareDisabled(square, squareStateSignature)} on:click={() => chooseSquare(square)}>{square.toUpperCase()}</button>
+            <button class="square-control" data-square={square} type="button" aria-label={squareLabel(square, squareStateSignature)} disabled={squareDisabled(square, squareStateSignature)} on:click={() => chooseSquare(square)}>{square.toUpperCase()}</button>
         {/each}
     </div>
     <span class="sr-only" aria-live="polite">{selectedLetter ? `This move writes ${selectedLetter}` : ""}</span>

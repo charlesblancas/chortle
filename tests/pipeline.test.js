@@ -11,7 +11,7 @@ import { chooseReply, isUciMove } from "../src/lib/tinyEngine.js";
 import { applyEngineReply, fastChessReply } from "../src/lib/fastChessEngine.js";
 import { gameStorageKey, normalizeSavedGame, readSavedGame, writeSavedGame } from "../src/lib/gameStorage.js";
 import { buildSolutionPositions, evaluationLabel, evaluationPercent, materialEvaluation } from "../src/lib/solutionReplay.js";
-import { cacheSunfishAnalysis, getCachedSunfishAnalysis, seedSunfishAnalysis } from "../src/lib/sunfishEngine.js";
+import { cacheSunfishAnalysis, getCachedSunfishAnalysis, seedSunfishAnalysis, sunfishAnalyze } from "../src/lib/sunfishEngine.js";
 
 const mixed = FIXTURES.find((fixture) => fixture.id === "mixed-entry");
 
@@ -292,6 +292,42 @@ test("Sunfish analysis cache restores moves and carries a suggested child score"
         score: 410,
         verified: true,
     });
+});
+
+test("aborting before Sunfish is ready never starts a stale search", async () => {
+    const originalWorker = globalThis.Worker;
+    let worker;
+    class DelayedWorker {
+        constructor() {
+            worker = this;
+            this.listeners = new Map();
+            this.messages = [];
+        }
+        addEventListener(type, listener) {
+            this.listeners.set(type, listener);
+        }
+        postMessage(message) {
+            this.messages.push(message);
+        }
+        terminate() {}
+        emit(type, event) {
+            this.listeners.get(type)?.(event);
+        }
+    }
+
+    globalThis.Worker = DelayedWorker;
+    try {
+        const controller = new AbortController();
+        const analysis = sunfishAnalyze("8/8/8/8/8/8/8/K6k w - - 0 1", 14, Infinity, { signal: controller.signal });
+        controller.abort();
+        await assert.rejects(analysis, /Sunfish analysis cancelled/);
+        worker.emit("message", { data: "readyok" });
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        assert.equal(worker.messages.some((message) => String(message).startsWith("go depth")), false);
+        worker.emit("error", {});
+    } finally {
+        globalThis.Worker = originalWorker;
+    }
 });
 
 test("vendored Sunfish returns a deterministic evaluation score", () => {

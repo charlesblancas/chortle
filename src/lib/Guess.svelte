@@ -37,9 +37,10 @@
     })();
 
     $: displayStatus = submitted ? status : Array(5).fill(-1);
+    $: rowLabel = submitted ? "Submitted guess row, scored" : active ? "Current guess row" : "Unused guess row";
 </script>
 
-<div class:active class="guess" role="group" aria-label={`${active ? "Current" : "Submitted"} guess row${submitted ? ", scored" : ""}`}>
+<div class:active class="guess" role="group" aria-label={rowLabel}>
     <div class="tiles">
         <Tile letter={word[0] || (active && word.length === 0 ? previewLetter : "")} status={displayStatus[0]} moveStatus={tileDetails[0].moveStatus} ghost={active && word.length === 0 && !!previewLetter} move={tileDetails[0].move} />
         <Tile letter={word[1] || (active && word.length === 1 ? previewLetter : "")} status={displayStatus[1]} moveStatus={tileDetails[1].moveStatus} ghost={active && word.length === 1 && !!previewLetter} move={tileDetails[1].move} />

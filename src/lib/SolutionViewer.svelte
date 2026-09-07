@@ -26,6 +26,7 @@
     let evaluation = materialEvaluation(positions[0].fen);
     let evaluationSource = "material fallback";
     let analysisRequest = 0;
+    let analysisController;
     let analysisKey = "";
     let replayArrows = [];
     let arrowSource = "";
@@ -64,6 +65,8 @@
 
     function stopAnalysis() {
         analysisRequest += 1;
+        analysisController?.abort();
+        analysisController = undefined;
         cancelSunfishAnalysis();
     }
 
@@ -83,8 +86,10 @@
 
     async function requestAnalysis(positionFen, canonicalMove = "") {
         if (typeof document !== "undefined" && document.hidden) return;
-        const request = ++analysisRequest;
-        cancelSunfishAnalysis();
+        stopAnalysis();
+        const request = analysisRequest;
+        const controller = new AbortController();
+        analysisController = controller;
         const cached = getCachedSunfishAnalysis(positionFen);
         setArrows(canonicalMove, cached?.move);
 
@@ -100,18 +105,20 @@
         } else if (request === 1) {
             evaluation = fallback;
             evaluationSource = "material fallback";
+        } else {
+            evaluationSource = "Previous position (checking)";
         }
 
-        const firstDepth = cached?.verified ? cached.depth + 1 : 2;
-        for (let depth = firstDepth; request === analysisRequest; depth += 1) {
+        for (let depth = 2; request === analysisRequest; depth += 1) {
             if (request !== analysisRequest) return;
             let result;
             for (let attempt = 0; attempt < 8; attempt += 1) {
                 if (request !== analysisRequest) return;
                 try {
-                    result = await sunfishAnalyze(positionFen, depth, ANALYSIS_TIMEOUT_MS);
+                    result = await sunfishAnalyze(positionFen, depth, ANALYSIS_TIMEOUT_MS, { signal: controller.signal });
                     break;
                 } catch (error) {
+                    if (controller.signal.aborted || request !== analysisRequest) return;
                     // A newer analysis may still be using the shared worker.
                     // Give it a moment to finish before retrying this request.
                     if (error?.message === "Sunfish search timed out") break;
@@ -233,7 +240,7 @@
         </div>
     </div>
     <p class="arrow-legend" aria-label="Move arrow legend"><span><i class="arrow-swatch sunfish-swatch" aria-hidden="true"></i>Blue: Sunfish</span><span><i class="arrow-swatch puzzle-swatch" aria-hidden="true"></i>Green: puzzle line</span></p>
-    <p class="evaluation-text" aria-live="polite">{evaluationText} <span>({evaluationSource})</span></p>
+    <p class="evaluation-text">{evaluationText} <span>({evaluationSource})</span></p>
 
     <div class="replay-controls" aria-label="Solution replay controls">
         <button type="button" aria-label="Go to puzzle start" disabled={!customPosition && positionIndex === 0} on:click={() => goTo(0)}>First</button>

@@ -20,6 +20,33 @@ function cacheAnalysis(fen, entry) {
     }
 }
 
+function analysisCancelledError() {
+    return new Error("Sunfish analysis cancelled");
+}
+
+function waitForWorkerReady(signal) {
+    if (signal?.aborted) return Promise.reject(analysisCancelledError());
+    const workerReady = ensureWorker();
+    if (!signal) return workerReady;
+    return new Promise((resolve, reject) => {
+        const abort = () => {
+            signal.removeEventListener("abort", abort);
+            reject(analysisCancelledError());
+        };
+        signal.addEventListener("abort", abort, { once: true });
+        workerReady.then(
+            (value) => {
+                signal.removeEventListener("abort", abort);
+                resolve(value);
+            },
+            (error) => {
+                signal.removeEventListener("abort", abort);
+                reject(error);
+            },
+        );
+    });
+}
+
 /**
  * Return the best in-memory analysis for an exact FEN. A provisional entry
  * inherited from a suggested parent move is deliberately marked unverified.
@@ -113,9 +140,10 @@ function ensureWorker() {
         }
         if (!line.startsWith("bestmove ") || !pendingSearch) return;
         const move = line.split(/\s+/)[1] || "";
-        const { resolve, reject, timer, mode, fen, score } = pendingSearch;
+        const { resolve, reject, timer, mode, fen, score, cleanup } = pendingSearch;
         pendingSearch = undefined;
         clearTimeout(timer);
+        cleanup?.();
         if (mode === "evaluation") {
             if (Number.isFinite(score)) resolve(scoreFromWhitePerspective(fen, score));
             else reject(new Error("Sunfish returned no evaluation"));
@@ -135,6 +163,7 @@ function ensureWorker() {
         const error = new Error("Sunfish worker failed");
         rejectReady?.(error);
         if (pendingSearch?.timer) clearTimeout(pendingSearch.timer);
+        pendingSearch?.cleanup?.();
         pendingSearch?.reject(error);
         reset();
     });
@@ -169,27 +198,39 @@ export async function sunfishReply(fen, depth = 2) {
 /** Return the current best move and score from one deterministic search. */
 export function cancelSunfishAnalysis() {
     if (pendingSearch?.mode !== "analysis") return;
-    const { reject, timer } = pendingSearch;
-    clearTimeout(timer);
-    pendingSearch = undefined;
-    reset();
-    reject(new Error("Sunfish analysis cancelled"));
+    pendingSearch.cancel?.();
 }
 
-export async function sunfishAnalyze(fen, depth = 2, timeoutMs = SEARCH_TIMEOUT_MS) {
-    await ensureWorker();
+export async function sunfishAnalyze(fen, depth = 2, timeoutMs = SEARCH_TIMEOUT_MS, { signal } = {}) {
+    await waitForWorkerReady(signal);
+    if (signal?.aborted) throw analysisCancelledError();
     if (pendingSearch) throw new Error("Sunfish is already searching");
 
     return new Promise((resolve, reject) => {
+        if (signal?.aborted) {
+            reject(analysisCancelledError());
+            return;
+        }
+        const cleanup = () => signal?.removeEventListener("abort", cancel);
+        const cancel = () => {
+            if (!pendingSearch || pendingSearch.resolve !== resolve) return;
+            clearTimeout(pendingSearch.timer);
+            pendingSearch = undefined;
+            cleanup();
+            reset();
+            reject(analysisCancelledError());
+        };
         const timer = Number.isFinite(timeoutMs)
             ? setTimeout(() => {
                 if (!pendingSearch || pendingSearch.resolve !== resolve) return;
                 pendingSearch = undefined;
+                cleanup();
                 reset();
                 reject(new Error("Sunfish search timed out"));
             }, timeoutMs)
             : undefined;
-        pendingSearch = { resolve, reject, timer, mode: "analysis", fen, score: null };
+        pendingSearch = { resolve, reject, timer, mode: "analysis", fen, score: null, cancel, cleanup };
+        signal?.addEventListener("abort", cancel, { once: true });
         worker.postMessage("ucinewgame");
         worker.postMessage(`position fen ${fen}`);
         worker.postMessage(`go depth ${depth}`);

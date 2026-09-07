@@ -4,12 +4,13 @@ test("loads the daily game and closes the first-use instructions", async ({ page
     await page.goto("/");
     await expect(page).toHaveTitle(/Chortle Beta/);
     await expect(page.getByRole("heading", { name: /Chortle/ })).toBeVisible();
-    const instructions = page.getByRole("dialog");
+    const instructions = page.getByRole("dialog", { name: "Find the word through the board." });
     await expect(instructions).toBeVisible();
     await instructions.getByRole("button", { name: "Understood" }).click();
     await expect(instructions).toBeHidden();
     await expect(page.getByRole("region", { name: /Chess board/i })).toBeVisible();
     await expect(page.getByText(/Puzzle \d{4}/)).toBeVisible();
+    await expect(page.getByRole("group", { name: "Unused guess row" })).toHaveCount(4);
 });
 
 test("production page serves the worker and board assets", async ({ page, request }) => {
@@ -40,10 +41,53 @@ test("short phones keep the keyboard inside the viewport and controls are isolat
 test("a mated fixture can be undone without leaving the board locked", async ({ page }) => {
     await page.goto("/?fixture=mate-state");
     await page.getByRole("dialog").getByRole("button", { name: "Understood" }).click();
-    await expect(page.locator(".mate-banner")).toHaveText("You are mated.");
+    await expect(page.locator(".mate-banner")).toHaveText(/You are mated\. Press Backspace to revise your last move\./);
+    await page.keyboard.press("I");
+    await expect(page.locator(".game-error")).toHaveText("Position ended. Press Backspace to revise your last move.");
     await page.keyboard.press("Backspace");
     await expect(page.locator(".mate-banner")).toBeHidden();
     await expect(page.getByRole("button", { name: /G[1-8]/ }).first()).toBeVisible();
+});
+
+test("promotion traps keyboard focus and restores it after cancellation", async ({ page }) => {
+    await page.goto("/?fixture=promotion-state");
+    await page.getByRole("dialog").getByRole("button", { name: "Understood" }).click();
+    const controls = page.locator(".square-controls");
+    const pawn = controls.getByRole("button", { name: /A7, white pawn; select to choose a move/i });
+    await pawn.focus();
+    await page.keyboard.press("Enter");
+    const destination = controls.getByRole("button", { name: /A8, empty square; legal destination/i });
+    await destination.focus();
+    await page.keyboard.press("Enter");
+
+    const promotion = page.getByRole("dialog", { name: "Choose a piece" });
+    const queen = promotion.getByRole("button", { name: "Promote to Queen" });
+    const cancel = promotion.getByRole("button", { name: "Cancel move" });
+    await expect(promotion).toBeVisible();
+    await expect(queen).toBeFocused();
+    await page.keyboard.press("Shift+Tab");
+    await expect(cancel).toBeFocused();
+    await page.keyboard.press("Tab");
+    await expect(queen).toBeFocused();
+    await page.keyboard.press("Escape");
+    await expect(promotion).toBeHidden();
+    await expect(pawn).toBeFocused();
+});
+
+test("copy result offers manual text when browser clipboard access fails", async ({ page }) => {
+    await page.addInitScript(() => {
+        Object.defineProperty(navigator, "clipboard", {
+            configurable: true,
+            value: { writeText: () => Promise.reject(new Error("Clipboard blocked")) },
+        });
+        document.execCommand = () => false;
+    });
+    await page.goto("/?fixture=solution-state");
+    await page.getByRole("dialog").getByRole("button", { name: "Understood" }).click();
+    const result = page.getByRole("dialog", { name: /Solved in 1\/5/ });
+    await result.getByRole("button", { name: "Copy result" }).click();
+    await expect(result.getByRole("status")).toHaveText(/Copy failed\. Select the result text below and copy it manually\./);
+    await expect(result.getByRole("textbox", { name: "Result text to copy manually" })).toHaveValue(/CHORTLE BETA #0001 1\/5/);
 });
 
 test("a solved game can replay its solution without changing the result", async ({ page }) => {

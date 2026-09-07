@@ -113,6 +113,11 @@
 
     function input(key) {
         if ($showInstructions || $gameOver || engineThinking || promotionPending) return;
+        if ((mated || terminal) && key !== "Backspace") {
+            clearGuidance();
+            message = "Position ended. Press Backspace to revise your last move.";
+            return;
+        }
         clearGuidance();
         previewLetter = "";
         if (/^[A-Za-z]$/.test(key)) {
