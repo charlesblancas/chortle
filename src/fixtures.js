@@ -51,6 +51,24 @@ export const FIXTURES = [
         },
         instructions: "Move the A-file pawn to a8. The piece chooser should appear on the board; choose a piece or cancel the move.",
     },
+    {
+        id: "solution-state",
+        label: "Solved solution viewer",
+        description: "A completed FOCAL row for checking the read-only solution replay.",
+        game: {
+            fen: "8/3p4/1pp1p3/5kp1/P1PP2Rr/2K2P2/8/8 b - - 2 34",
+            moves: "h4g4 f3g4 f5g4 c4c5 b6c5 a4a5",
+            word: "focal",
+        },
+        initialGuess: "FOCAL",
+        initialActions: [
+            { letter: "F", uci: "f3g4", reply: "f5g4", moveCorrect: true },
+            { letter: "C", uci: "c4c5", reply: "b6c5", moveCorrect: true },
+            { letter: "A", uci: "a4a5", reply: "", moveCorrect: true },
+        ],
+        autoSubmit: true,
+        instructions: "Loads directly into the solved result so the solution viewer can be inspected.",
+    },
 ];
 
 export function fixtureById(id) {

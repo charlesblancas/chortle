@@ -17,6 +17,16 @@
     // game does not display the wrong banner or leave the row half-live.
     export let terminal = false;
     export let highlightFile = "";
+    export let readOnly = false;
+    export let replay = false;
+    export let replayFen = "";
+    export let replayMove = "";
+    export let replayArrow = null;
+    export let replayArrows = [];
+    // Replay boards can be used as a small analysis board after the result
+    // dialog closes. In that mode either side may make legal local moves;
+    // those moves never enter the word-game action history.
+    export let playable = false;
     const IMAGE_PIECE_SETS = new Set(["chessnut", "cburnett", "merida", "mono"]);
     const PIECE_CODES = ["P", "N", "B", "R", "Q", "K"];
     const dispatch = createEventDispatcher();
@@ -29,6 +39,9 @@
     let engineThinking = false;
     let promotionPending = null;
     let promotionFirstButton;
+    let boardVersion = 0;
+    let pointerStart = null;
+    let pointerMoved = false;
     const PROMOTION_CHOICES = [
         { role: "q", label: "Queen", shortLabel: "Q", white: "♕", black: "♛" },
         { role: "r", label: "Rook", shortLabel: "R", white: "♖", black: "♜" },
@@ -39,6 +52,7 @@
         ...choice,
         symbol: promotionPending?.color === "b" ? choice.black : choice.white,
     }));
+    $: boardFen = replay ? replayFen : fen;
     $: orientation = fen.split(" ")[1] === "w" ? "black" : "white";
     $: playerColor = orientation;
     $: files = orientation === "white" ? "ABCDEFGH".split("") : "HGFEDCBA".split("");
@@ -51,6 +65,7 @@
     $: pieceAssetStyle = IMAGE_PIECE_SETS.has(pieceSet)
         ? PIECE_CODES.flatMap((code) => [`--piece-w${code}: url('/pieces/${pieceSet}/w${code}.svg')`, `--piece-b${code}: url('/pieces/${pieceSet}/b${code}.svg')`]).join(";")
         : "";
+    $: replayShapes = replayArrows.length ? replayArrows : replayArrow ? [replayArrow] : [];
 
     function destinations() {
         const result = new Map();
@@ -73,11 +88,14 @@
     function setup() {
         const turnColor = chess.turn() === "w" ? "white" : "black";
         const playerTurn = turnColor === playerColor;
+        const canMove = !readOnly && !disabled && !terminal && !engineThinking && !promotionPending && (playable || playerTurn) && !chess.isGameOver();
         const config = {
-            movable: { enabled: !disabled && !terminal && !engineThinking && playerTurn, color: playerColor, dests: destinations(), free: false },
+            movable: { enabled: canMove, color: playable ? turnColor : playerColor, dests: destinations(), free: false },
             turnColor,
-            viewOnly: disabled || terminal || engineThinking || !playerTurn || Boolean(promotionPending),
+            viewOnly: readOnly || disabled || terminal || engineThinking || (!playable && !playerTurn) || Boolean(promotionPending),
         };
+        if (replay) config.lastMove = replayMove ? [replayMove.slice(0, 2), replayMove.slice(2, 4)] : undefined;
+        if (replay) config.drawable = { enabled: false, visible: true, autoShapes: replayShapes };
         // Chessground has already animated the pawn to its final rank when
         // the promotion chooser opens. Keep that visual move in place until
         // the player picks a piece; all other setup calls render the logic
@@ -87,17 +105,27 @@
     }
     function rebuild() {
         if (!chessground) return;
+        const currentFen = replay ? replayFen : fen;
         if (promotionPending) {
             promotionPending = null;
             dispatch("promotion", { active: false });
         }
-        chess.load(fen);
+        chess.load(currentFen);
+        boardVersion += 1;
         selectedLetter = "";
         selectedSquare = "";
         dispatch("preview", { letter: "" });
-        chessground.set({ fen, orientation, coordinates: false });
-        apply(line[0]);
-        actions.forEach((action) => { apply(action.uci); apply(action.reply); });
+        chessground.set({
+            fen: currentFen,
+            orientation,
+            coordinates: false,
+            ...(replay ? { lastMove: replayMove ? [replayMove.slice(0, 2), replayMove.slice(2, 4)] : undefined } : {}),
+            ...(replay ? { drawable: { enabled: false, visible: true, autoShapes: replayShapes } } : {}),
+        });
+        if (!replay) {
+            apply(line[0]);
+            actions.forEach((action) => { apply(action.uci); apply(action.reply); });
+        }
         setup();
     }
     function beginPromotion(from, to) {
@@ -119,9 +147,25 @@
         // committed before that prop has flushed back down to this component.
         if ((disabled && !allowDisabled) || (terminal && !allowDisabled) || engineThinking) return;
         const playerColor = chess.turn();
-        const move = chess.move({ from, to, promotion });
+        let move;
+        try {
+            move = chess.move({ from, to, promotion });
+        } catch {
+            // A click handler and Chessground's own pointer handler can both
+            // observe the same destination. The second observation is stale
+            // after the first move has been applied, so ignore it safely.
+            return;
+        }
         if (!move) return;
         const uci = `${move.from}${move.to}${move.promotion || ""}`;
+        if (replay && playable) {
+            selectedLetter = "";
+            selectedSquare = "";
+            dispatch("preview", { letter: "" });
+            dispatch("replayMove", { uci, san: move.san || move.lan || uci, fen: chess.fen() });
+            setup();
+            return;
+        }
         const actionIndex = actions.length;
         // Once a player leaves the puzzle line, the position has diverged even
         // if they later happen to play the same UCI move as the canonical
@@ -198,7 +242,7 @@
         }
     }
     async function after(from, to) {
-        if (disabled || engineThinking || promotionPending) return;
+        if (readOnly || disabled || engineThinking || promotionPending) return;
         if (beginPromotion(from, to)) return;
         commitMove(from, to);
     }
@@ -265,20 +309,22 @@
         const names = { p: "pawn", n: "knight", b: "bishop", r: "rook", q: "queen", k: "king" };
         return `${piece.color === "w" ? "white" : "black"} ${names[piece.type]}`;
     }
-    function squareLabel(square) {
+    function squareLabel(square, stateSignature) {
+        if (!stateSignature) return square.toUpperCase();
         const coordinate = square.toUpperCase();
         const piece = squarePieceLabel(square);
         if (selectedSquare === square) return `${coordinate}, ${piece}; selected starting square, activate again to clear`;
         if (selectedSquare) return `${coordinate}, ${piece}; ${selectedDestinations.includes(square) ? "legal destination" : "not a legal destination"}`;
         return `${coordinate}, ${piece}; ${chess.moves({ square, verbose: true }).length ? "select to choose a move" : "no legal move"}`;
     }
-    function squareDisabled(square) {
-        if (disabled || engineThinking || promotionPending) return true;
+    function squareDisabled(square, stateSignature) {
+        if (!stateSignature) return true;
+        if (readOnly || disabled || engineThinking || promotionPending) return true;
         if (selectedSquare) return selectedSquare !== square && !selectedDestinations.includes(square);
         return chess.moves({ square, verbose: true }).length === 0;
     }
     function chooseSquare(square) {
-        if (squareDisabled(square)) return;
+        if (squareDisabled(square, squareStateSignature)) return;
         if (selectedSquare === square) {
             clearSquareSelection();
             return;
@@ -297,10 +343,9 @@
             selectedSquare = "";
             dispatch("preview", { letter: "" });
         };
-        const onBoardClick = (event) => {
-            showFile(event);
+        const onBoardClick = () => {
             requestAnimationFrame(() => {
-                if (!node.querySelector("square.selected")) clear();
+                if (!selectedSquare && !node.querySelector("square.selected")) clear();
             });
         };
         const clearPreview = (event) => {
@@ -319,18 +364,40 @@
             },
         };
     }
+    function rememberPointer(event) {
+        pointerStart = { x: event.clientX, y: event.clientY };
+        pointerMoved = false;
+    }
+    function trackPointer(event) {
+        if (!pointerStart) return;
+        pointerMoved ||= Math.hypot(event.clientX - pointerStart.x, event.clientY - pointerStart.y) > 6;
+    }
+    function handleBoardClick(event) {
+        if (pointerMoved) {
+            pointerStart = null;
+            pointerMoved = false;
+            return;
+        }
+        pointerStart = null;
+        const rect = event.currentTarget.getBoundingClientRect();
+        const column = Math.floor(((event.clientX - rect.left) / rect.width) * 8);
+        const row = Math.floor(((event.clientY - rect.top) / rect.height) * 8);
+        if (column < 0 || column > 7 || row < 0 || row > 7) return;
+        chooseSquare(`${files[column].toLowerCase()}${ranks[row]}`);
+    }
     // Replaying the whole position is only necessary when the move history
     // changes.  `disabled` changes as a guess fills up (especially between
     // letters four and five), and rebuilding on that transition made the
     // board visibly jump/reset even though no chess move had happened.
-    $: signature = JSON.stringify(actions);
+    $: signature = JSON.stringify({ actions, replay, replayFen, replayMove, replayArrow, replayArrows });
     $: if (chessground && signature !== last) { last = signature; rebuild(); }
-    $: interactionSignature = `${disabled}:${engineThinking}:${Boolean(promotionPending)}`;
+    $: interactionSignature = `${disabled}:${readOnly}:${playable}:${engineThinking}:${Boolean(promotionPending)}`;
+    $: squareStateSignature = `${boardVersion}:${boardFen}:${interactionSignature}:${selectedSquare}:${selectedDestinations.join(",")}`;
     $: if (chessground && last === signature && interactionSignature) setup();
     onMount(() => {
         rebuild();
-        last = JSON.stringify(actions);
-        warmSunfish();
+        last = signature;
+        if (!readOnly) warmSunfish();
     });
 </script>
 
@@ -341,7 +408,7 @@
         <div class="rank-labels" aria-hidden="true">{#each ranks as rank}<span>{rank}</span>{/each}</div>
         <div class="board" class:piece-set-glyph={pieceSet === "glyph"} class:piece-set-image={IMAGE_PIECE_SETS.has(pieceSet)} class:piece-set-cburnett={pieceSet === "cburnett"} style={pieceAssetStyle} use:fileHint>
             {#if highlightIndex >= 0}<div class="file-highlight" style={`left: ${highlightIndex * 12.5}%`}></div>{/if}
-            <div class="board-visual" aria-hidden="true"><Chessground bind:this={chessground} coordinates={false} config={{ movable: { events: { after } } }} /></div>
+            <div class="board-visual" aria-hidden="true" on:pointerdown={rememberPointer} on:pointermove={trackPointer} on:click={handleBoardClick}><Chessground bind:this={chessground} coordinates={false} config={{ movable: { events: { after } } }} /></div>
             {#if mated}<div class="mate-banner" role="status">You are mated.</div>
             {:else if terminal}<div class="mate-banner" role="status">Position ended.</div>{/if}
             {#if promotionPending}
@@ -372,7 +439,7 @@
     </div>
     <div class="square-controls sr-only" aria-label="Keyboard chess move controls">
         {#each boardSquares as square}
-            <button class="square-control" type="button" aria-label={squareLabel(square)} disabled={squareDisabled(square)} on:click={() => chooseSquare(square)}>{square.toUpperCase()}</button>
+            <button class="square-control" type="button" aria-label={squareLabel(square, squareStateSignature)} disabled={squareDisabled(square, squareStateSignature)} on:click={() => chooseSquare(square)}>{square.toUpperCase()}</button>
         {/each}
     </div>
     <span class="sr-only" aria-live="polite">{selectedLetter ? `This move writes ${selectedLetter}` : ""}</span>

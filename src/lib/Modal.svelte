@@ -1,10 +1,34 @@
 <script>
-    import { tick } from "svelte";
+    import { onDestroy, tick } from "svelte";
 
     export let show;
     let dialog;
     let wasShown = false;
     let priorFocus;
+    let bodyLocked = false;
+    let lockedScrollY = 0;
+
+    function setBodyLock(locked) {
+        if (typeof document === "undefined") return;
+        if (locked && !bodyLocked) {
+            lockedScrollY = window.scrollY;
+            document.body.style.position = "fixed";
+            document.body.style.top = `-${lockedScrollY}px`;
+            document.body.style.width = "100%";
+            document.body.style.overflow = "hidden";
+            bodyLocked = true;
+        } else if (!locked && bodyLocked) {
+            document.body.style.position = "";
+            document.body.style.top = "";
+            document.body.style.width = "";
+            document.body.style.overflow = "";
+            bodyLocked = false;
+            window.scrollTo(0, lockedScrollY);
+        }
+    }
+
+    $: setBodyLock(Boolean(show));
+    onDestroy(() => setBodyLock(false));
 
     function focusableElements() {
         if (!dialog) return [];
@@ -49,7 +73,7 @@
 {/if}
 
 <style>
-    .modal-layer { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; padding: 1rem; background: rgba(38, 50, 56, 0.18); }
+    .modal-layer { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; overflow-y: auto; overscroll-behavior: contain; padding: 1rem; background: rgba(38, 50, 56, 0.18); }
     .modal-card {
         position: relative;
         width: min(100%, 34rem);

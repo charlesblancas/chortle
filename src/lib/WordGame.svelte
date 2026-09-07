@@ -5,6 +5,7 @@
     import GameOver from "./GameOver.svelte";
     import Keyboard from "./Keyboard.svelte";
     import GameError from "./GameError.svelte";
+    import SolutionViewer from "./SolutionViewer.svelte";
     import { games } from "../games/final_games";
     import { possibilities } from "../games/possibilities";
     import { gameOver, showInstructions } from "../stores";
@@ -24,7 +25,11 @@
     let currentRow = 0;
     let actions = fixture?.initialActions ? [...fixture.initialActions] : [];
     let actionHistory = Array.from({ length: ROWS }, () => []);
-    let solved = false;
+    let solved = Boolean(fixture?.autoSubmit);
+    if (fixture?.autoSubmit) {
+        statuses[0] = scoreWord(guesses[0], fixture.game.word.toUpperCase());
+        actionHistory[0] = actions.map((action) => ({ ...action }));
+    }
     let previewLetter = "";
     let keyStatuses = {};
     let message = "";
@@ -40,7 +45,9 @@
     let mated = fixture?.mated || false;
     let terminal = fixture?.terminal || fixture?.mated || false;
     let promotionPending = false;
+    let solutionViewing = false;
     let hydrated = false;
+    let autoResultSubscription;
     const dateLabel = new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "long", year: "numeric" }).format(new Date());
     $: storageKey = gameStorageKey(selectedDay, game);
 
@@ -74,9 +81,28 @@
                 gameOver.set(false);
             }
         } else {
-            gameOver.set(false);
+            if (fixture?.autoSubmit) {
+                // Let the first-use instructions claim the first modal slot.
+                // The solved result appears after those instructions close.
+                tick().then(() => {
+                    if ($showInstructions) {
+                        autoResultSubscription = showInstructions.subscribe((visible) => {
+                            if (!visible) {
+                                gameOver.set(true);
+                                autoResultSubscription?.();
+                                autoResultSubscription = undefined;
+                            }
+                        });
+                    } else {
+                        gameOver.set(true);
+                    }
+                });
+            } else {
+                gameOver.set(false);
+            }
         }
         hydrated = true;
+        return () => autoResultSubscription?.();
     });
 
     function clearGuidance() {
@@ -184,21 +210,33 @@
         if (!fixture) removeSavedGame(storage, storageKey);
         window.location.reload();
     }
+
+    function openSolution() {
+        solutionViewing = true;
+    }
+
+    function closeSolution() {
+        solutionViewing = false;
+    }
 </script>
 
 <Instructions />
 <div class="meta"><span>Puzzle {String(selectedDay).padStart(4, "0")}</span><span>{dateLabel}</span><span>Attempt {currentRow + 1}/{ROWS}</span></div>
-<GameOver word={answer} {statuses} {guesses} {actionHistory} {solutionMoves} {solved} day={selectedDay} attempts={currentRow + 1} on:reset={resetDebugGame} />
+<GameOver word={answer} {statuses} {guesses} {actionHistory} {solutionMoves} {solved} day={selectedDay} attempts={currentRow + 1} {solutionViewing} on:viewSolution={openSolution} on:reset={resetDebugGame} />
 <div class="guesses">
     {#each guesses as guess, index}
         <Guess status={statuses[index]} word={guess} active={index === currentRow} previewLetter={index === currentRow ? previewLetter : ""} actions={index === currentRow ? actions : actionHistory[index]} {solutionMoves} />
     {/each}
 </div>
 <GameError {message} />
-<Chess fen={game.fen} movesString={game.moves} {actions} {mated} {terminal} {pieceSet} disabled={mated || terminal || engineThinking || promotionPending || guesses[currentRow].length >= 5} {highlightFile} on:move={chessLetter} on:resolve={resolveChessMove} on:thinking={(event) => engineThinking = event.detail.active} on:promotion={handlePromotion} on:preview={(event) => previewLetter = event.detail.letter} />
-{#if guesses[currentRow].length >= 5 && !$gameOver}<p class="row-ready">Row complete · press Enter to submit or Backspace to revise.</p>{/if}
-<p class="rule">A–H are played from the board.</p>
-<Keyboard {keyStatuses} on:key={(event) => input(event.detail.key)} />
+{#if $gameOver && solved}
+    <SolutionViewer fen={game.fen} movesString={game.moves} {pieceSet} interactive={solutionViewing} on:close={closeSolution} />
+{:else}
+    <Chess fen={game.fen} movesString={game.moves} {actions} {mated} {terminal} {pieceSet} disabled={mated || terminal || engineThinking || promotionPending || guesses[currentRow].length >= 5} {highlightFile} on:move={chessLetter} on:resolve={resolveChessMove} on:thinking={(event) => engineThinking = event.detail.active} on:promotion={handlePromotion} on:preview={(event) => previewLetter = event.detail.letter} />
+    {#if guesses[currentRow].length >= 5 && !$gameOver}<p class="row-ready">Row complete · press Enter to submit or Backspace to revise.</p>{/if}
+    <p class="rule">A–H are played from the board.</p>
+    <Keyboard {keyStatuses} on:key={(event) => input(event.detail.key)} />
+{/if}
 <svelte:window on:keydown={handleWindowKeydown} on:click={clearGuidance} />
 
 <style>

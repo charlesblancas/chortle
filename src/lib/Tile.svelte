@@ -60,23 +60,6 @@
         background-color: var(--gray);
         color: var(--panel);
     }
-    /* A small non-colour marker makes scored tiles distinguishable for users
-       who cannot reliably separate the three fills. */
-    div[data-status="2"]::after,
-    div[data-status="1"]::after,
-    div[data-status="0"]::after {
-        position: absolute;
-        top: 0.08rem;
-        right: 0.14rem;
-        color: currentColor;
-        font: 700 0.55rem/1 var(--sans);
-        opacity: 0.92;
-        pointer-events: none;
-    }
-    div[data-status="2"]::after { content: "✓"; }
-    div[data-status="1"]::after { content: "•"; }
-    div[data-status="0"]::after { content: "×"; }
-
     @media (max-width: 420px) {
         div { width: clamp(2.15rem, 13vw, 2.75rem); height: clamp(2.15rem, 13vw, 2.75rem); }
         .letter { font-size: clamp(0.95rem, 4.5vw, 1.25rem); }

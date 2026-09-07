@@ -10,6 +10,7 @@ import { chessMoveStatus, combineFeedbackStatuses, dailyPuzzleIndex, fileProject
 import { chooseReply, isUciMove } from "../src/lib/tinyEngine.js";
 import { applyEngineReply, fastChessReply } from "../src/lib/fastChessEngine.js";
 import { gameStorageKey, normalizeSavedGame, readSavedGame, writeSavedGame } from "../src/lib/gameStorage.js";
+import { buildSolutionPositions, evaluationLabel, evaluationPercent, materialEvaluation } from "../src/lib/solutionReplay.js";
 
 const mixed = FIXTURES.find((fixture) => fixture.id === "mixed-entry");
 
@@ -25,6 +26,14 @@ function sunfishMove(engine, fen, depth = 2) {
     engine.engine(`position fen ${fen}`, (line) => output.push(line));
     engine.engine(`go depth ${depth}`, (line) => output.push(line));
     return output.findLast((line) => line.startsWith("bestmove "))?.split(/\s+/)[1] || "";
+}
+
+function sunfishEvaluation(engine, fen, depth = 1) {
+    const output = [];
+    engine.engine(`position fen ${fen}`, (line) => output.push(line));
+    engine.engine(`go depth ${depth}`, (line) => output.push(line));
+    const info = output.findLast((line) => line.startsWith("info ") && line.includes(" score cp "));
+    return info ? Number(info.match(/ score cp (-?\d+)/)?.[1]) : NaN;
 }
 
 test("published fixture records have valid move projections", () => {
@@ -236,6 +245,36 @@ test("vendored Sunfish accepts puzzle FEN and gives a deterministic legal reply"
     assert.equal(first, second);
     assert.equal(first, "d8h4");
     assert.ok(position.move({ from: first.slice(0, 2), to: first.slice(2, 4), promotion: first[4] }));
+});
+
+test("solution replay starts at the playable position and visits every canonical ply", () => {
+    const game = games.find((item) => item.word === "focal");
+    const positions = buildSolutionPositions(game.fen, game.moves);
+    assert.equal(positions.length, game.moves.trim().split(/\s+/).length);
+    assert.equal(positions[0].setup.move, game.moves.split(/\s+/)[0]);
+    assert.equal(positions[1].move, game.moves.split(/\s+/)[1]);
+    assert.equal(positions.at(-1).move, game.moves.trim().split(/\s+/).at(-1));
+    assert.notEqual(positions[0].fen, game.fen, "the automatic setup move is already shown in normal play");
+});
+
+test("solution evaluation fallback is deterministic and readable", () => {
+    const start = new Chess();
+    assert.equal(materialEvaluation(start.fen()), 0);
+    assert.equal(evaluationLabel(0), "Equal");
+    assert.equal(evaluationLabel(150), "White +1.5");
+    assert.equal(evaluationLabel(-250), "Black +2.5");
+    assert.equal(evaluationPercent(0), 50);
+    assert.equal(evaluationPercent(10000), 95);
+});
+
+test("vendored Sunfish returns a deterministic evaluation score", () => {
+    const position = new Chess();
+    position.move({ from: "e2", to: "e4" });
+    const sunfish = loadSunfish();
+    const first = sunfishEvaluation(sunfish, position.fen());
+    const second = sunfishEvaluation(sunfish, position.fen());
+    assert.ok(Number.isFinite(first));
+    assert.equal(first, second);
 });
 
 test("a correct mate does not become a self-mate banner", () => {

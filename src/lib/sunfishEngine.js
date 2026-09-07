@@ -8,6 +8,17 @@ let rejectReady;
 let readyTimer;
 let pendingSearch;
 
+function parseScore(line) {
+    const match = /^info\s+.*\bscore\s+cp\s+(-?\d+)/.exec(line);
+    return match ? Number(match[1]) : null;
+}
+
+function scoreFromWhitePerspective(fen, score) {
+    // Sunfish searches from the side to move. The viewer displays the usual
+    // white-perspective score, so flip black-to-move positions.
+    return fen.split(/\s+/)[1] === "b" ? -score : score;
+}
+
 function reset() {
     worker?.terminate();
     worker = undefined;
@@ -44,11 +55,27 @@ function ensureWorker() {
             resolveReady?.();
             return;
         }
+        if (line.startsWith("info ") && pendingSearch) {
+            const score = parseScore(line);
+            if (Number.isFinite(score)) pendingSearch.score = score;
+            return;
+        }
         if (!line.startsWith("bestmove ") || !pendingSearch) return;
         const move = line.split(/\s+/)[1] || "";
-        const { resolve, reject, timer } = pendingSearch;
+        const { resolve, reject, timer, mode, fen, score } = pendingSearch;
         pendingSearch = undefined;
         clearTimeout(timer);
+        if (mode === "evaluation") {
+            if (Number.isFinite(score)) resolve(scoreFromWhitePerspective(fen, score));
+            else reject(new Error("Sunfish returned no evaluation"));
+            return;
+        }
+        if (mode === "analysis") {
+            if (/^[a-h][1-8][a-h][1-8][qrbn]?$/.test(move)) {
+                resolve({ move, score: Number.isFinite(score) ? scoreFromWhitePerspective(fen, score) : null });
+            } else reject(new Error("Sunfish returned no legal move"));
+            return;
+        }
         if (/^[a-h][1-8][a-h][1-8][qrbn]?$/.test(move)) resolve(move);
         else reject(new Error("Sunfish returned no legal move"));
     });
@@ -81,7 +108,56 @@ export async function sunfishReply(fen, depth = 2) {
             reset();
             reject(new Error("Sunfish search timed out"));
         }, SEARCH_TIMEOUT_MS);
-        pendingSearch = { resolve, reject, timer };
+        pendingSearch = { resolve, reject, timer, mode: "reply", fen, score: null };
+        worker.postMessage("ucinewgame");
+        worker.postMessage(`position fen ${fen}`);
+        worker.postMessage(`go depth ${depth}`);
+    });
+}
+
+/** Return the current best move and score from one deterministic search. */
+export function cancelSunfishAnalysis() {
+    if (pendingSearch?.mode !== "analysis") return;
+    const { reject, timer } = pendingSearch;
+    clearTimeout(timer);
+    pendingSearch = undefined;
+    reset();
+    reject(new Error("Sunfish analysis cancelled"));
+}
+
+export async function sunfishAnalyze(fen, depth = 2, timeoutMs = SEARCH_TIMEOUT_MS) {
+    await ensureWorker();
+    if (pendingSearch) throw new Error("Sunfish is already searching");
+
+    return new Promise((resolve, reject) => {
+        const timer = Number.isFinite(timeoutMs)
+            ? setTimeout(() => {
+                if (!pendingSearch || pendingSearch.resolve !== resolve) return;
+                pendingSearch = undefined;
+                reset();
+                reject(new Error("Sunfish search timed out"));
+            }, timeoutMs)
+            : undefined;
+        pendingSearch = { resolve, reject, timer, mode: "analysis", fen, score: null };
+        worker.postMessage("ucinewgame");
+        worker.postMessage(`position fen ${fen}`);
+        worker.postMessage(`go depth ${depth}`);
+    });
+}
+
+/** Resolve a shallow deterministic evaluation in white-perspective cp. */
+export async function sunfishEvaluate(fen, depth = 1) {
+    await ensureWorker();
+    if (pendingSearch) throw new Error("Sunfish is already searching");
+
+    return new Promise((resolve, reject) => {
+        const timer = setTimeout(() => {
+            if (!pendingSearch || pendingSearch.resolve !== resolve) return;
+            pendingSearch = undefined;
+            reset();
+            reject(new Error("Sunfish evaluation timed out"));
+        }, SEARCH_TIMEOUT_MS);
+        pendingSearch = { resolve, reject, timer, mode: "evaluation", fen, score: null };
         worker.postMessage("ucinewgame");
         worker.postMessage(`position fen ${fen}`);
         worker.postMessage(`go depth ${depth}`);

@@ -826,7 +826,9 @@
           }
           if (move && score >= gamma) {
             move_str = last_move_str;
-            //output("info depth "+depth+" score cp "+score+" pv "+move_str);
+            // The solution viewer uses the same deterministic search as the
+            // gameplay reply, but needs the score as well as the move.
+            output("info depth " + depth + " score cp " + score + " pv " + move_str);
           }
           if (depth > maxdepth || perf.now() - start > think) {
             return done();

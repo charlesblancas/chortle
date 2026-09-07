@@ -1,7 +1,7 @@
 <script>
     import { createEventDispatcher } from "svelte";
     import Modal from "./Modal.svelte";
-    import { gameOver } from "../stores";
+    import { gameOver, showInstructions } from "../stores";
     import { scoreShareRow } from "../gameRules";
 
     export let word;
@@ -12,6 +12,7 @@
     export let solved = false;
     export let day;
     export let attempts;
+    export let solutionViewing = false;
     let gameSummary = "";
     let copied = false;
     let gameOverValue;
@@ -44,12 +45,13 @@
     }
 </script>
 
-<Modal show={gameOverValue}>
+<Modal show={gameOverValue && !solutionViewing && !$showInstructions}>
     <p class="eyebrow">Puzzle {String(day).padStart(4, "0")}</p>
     <h1>{solved ? `Solved in ${attempts}/5` : "Out of attempts"}</h1>
     <p class="answer">Today’s answer: <strong>{word}</strong></p>
     <p class="summary" aria-label="Result grid">{gameSummary}</p>
     <button type="button" on:click={copyResult}>{copied ? "Copied" : "Copy result"}</button>
+    {#if solved}<button class="solution" type="button" on:click={() => dispatch("viewSolution")}>View solution</button>{/if}
     {#if import.meta.env.DEV}<button class="reset" type="button" on:click={() => dispatch("reset")}>Reset puzzle</button>{/if}
 </Modal>
 
@@ -61,4 +63,8 @@
     .answer strong { color: var(--text); letter-spacing: 0.08em; }
     .summary { margin: 0 0 1.1rem; padding: 0.7rem 0; border-block: 1px solid var(--line); white-space: pre; color: var(--text); font-size: 1.05rem; letter-spacing: 0.05em; }
     .reset { margin-left: 0.45rem; color: var(--burgundy); border-color: var(--burgundy); }
+    .solution { margin-left: 0.45rem; color: var(--accent); border-color: var(--accent); }
+    @media (max-width: 420px) {
+        .solution, .reset { margin-top: 0.45rem; margin-left: 0; }
+    }
 </style>
