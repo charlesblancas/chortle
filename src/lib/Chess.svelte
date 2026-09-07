@@ -389,11 +389,15 @@
     // changes.  `disabled` changes as a guess fills up (especially between
     // letters four and five), and rebuilding on that transition made the
     // board visibly jump/reset even though no chess move had happened.
-    $: signature = JSON.stringify({ actions, replay, replayFen, replayMove, replayArrow, replayArrows });
+    // Arrow updates arrive while the solution analysis deepens. Keep them out
+    // of the board rebuild signature so a search result cannot clear a user's
+    // selected piece or make a click feel unresponsive.
+    $: signature = JSON.stringify({ actions, replay, replayFen, replayMove });
     $: if (chessground && signature !== last) { last = signature; rebuild(); }
     $: interactionSignature = `${disabled}:${readOnly}:${playable}:${engineThinking}:${Boolean(promotionPending)}`;
+    $: replayVisualSignature = JSON.stringify(replayShapes);
     $: squareStateSignature = `${boardVersion}:${boardFen}:${interactionSignature}:${selectedSquare}:${selectedDestinations.join(",")}`;
-    $: if (chessground && last === signature && interactionSignature) setup();
+    $: if (chessground && last === signature && (interactionSignature || replayVisualSignature)) setup();
     onMount(() => {
         rebuild();
         last = signature;

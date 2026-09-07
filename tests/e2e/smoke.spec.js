@@ -114,3 +114,13 @@ test("a solved game can replay its solution without changing the result", async 
     await expect(page.getByRole("button", { name: "View solution" })).toBeVisible();
     await expect(page.getByText(/Solved in 1\/5/)).toBeVisible();
 });
+
+test("solution replay keeps Backspace as previous", async ({ page }) => {
+    await page.goto("/?fixture=solution-state");
+    await page.getByRole("dialog").getByRole("button", { name: "Understood" }).click();
+    await page.getByRole("dialog").getByRole("button", { name: "View solution" }).click();
+    await page.getByRole("button", { name: "Show next move" }).click();
+    await expect(page.getByText(/Move 1:.*1\//)).toBeVisible();
+    await page.keyboard.press("Backspace");
+    await expect(page.getByText(/Puzzle start · 0\//)).toBeVisible();
+});

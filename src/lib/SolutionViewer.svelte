@@ -168,6 +168,14 @@
         requestAnalysis(boardFen);
     }
 
+    function handleKeydown(event) {
+        if (!interactive || event.key !== "Backspace") return;
+        const target = event.target;
+        if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target?.isContentEditable) return;
+        event.preventDefault();
+        goPrevious();
+    }
+
 </script>
 
 <div class="solution-viewer" aria-label="Solution chessboard">
@@ -194,6 +202,7 @@
     </div>
     {#if interactive}<button class="close" type="button" on:click={() => dispatch("close")}>Back to result</button>{/if}
 </div>
+<svelte:window on:keydown={handleKeydown} />
 
 <style>
     .solution-viewer { color: var(--text); }
