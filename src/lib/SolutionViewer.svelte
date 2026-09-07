@@ -1,5 +1,5 @@
 <script>
-    import { createEventDispatcher } from "svelte";
+    import { createEventDispatcher, onDestroy, onMount } from "svelte";
     import Chess from "./Chess.svelte";
     import { cancelSunfishAnalysis, sunfishAnalyze } from "./sunfishEngine";
     import { buildSolutionPositions, evaluationLabel, evaluationPercent, materialEvaluation } from "./solutionReplay";
@@ -20,6 +20,7 @@
     let evaluation = materialEvaluation(positions[0].fen);
     let evaluationSource = "material fallback";
     let analysisRequest = 0;
+    let analysisKey = "";
     let replayArrows = [];
     let arrowSource = "";
 
@@ -36,9 +37,12 @@
     $: nextDisabled = customPosition
         ? customIndex >= customTrail.length - 1
         : positionIndex === positions.length - 1 && !(customTrail.length && positionIndex === customBaseIndex);
-    $: if (position && !customPosition && interactive) {
-        boardFen = position.fen;
-        requestAnalysis(position.fen, positions[positionIndex + 1]?.move || "");
+    $: canonicalMove = customPosition ? "" : positions[positionIndex + 1]?.move || "";
+    $: requestedAnalysisKey = interactive ? `${boardFen}\u0000${canonicalMove}` : "";
+    $: if (requestedAnalysisKey !== analysisKey) {
+        analysisKey = requestedAnalysisKey;
+        if (requestedAnalysisKey) requestAnalysis(boardFen, canonicalMove);
+        else stopAnalysis();
     }
 
     function arrowFor(uci, brush) {
@@ -48,8 +52,14 @@
 
     // The solution replay is allowed to spend time refining the answer. The
     // live game still uses depth 2, but this view keeps asking for deeper
-    // searches without a depth or time limit until the position changes.
+    // searches without a depth or time limit until the position changes or
+    // the solution viewer is no longer active.
     const ANALYSIS_TIMEOUT_MS = Infinity;
+
+    function stopAnalysis() {
+        analysisRequest += 1;
+        cancelSunfishAnalysis();
+    }
 
     function setArrows(canonicalMove = "", sunfishMove = "") {
         const puzzleArrow = arrowFor(canonicalMove, "green");
@@ -66,6 +76,7 @@
     }
 
     async function requestAnalysis(positionFen, canonicalMove = "") {
+        if (typeof document !== "undefined" && document.hidden) return;
         const request = ++analysisRequest;
         cancelSunfishAnalysis();
         setArrows(canonicalMove);
@@ -118,7 +129,6 @@
         customIndex = Math.max(0, Math.min(customTrail.length - 1, index));
         customPosition = true;
         boardFen = customTrail[customIndex].fen;
-        requestAnalysis(boardFen);
     }
 
     function goPrevious() {
@@ -165,7 +175,6 @@
         customIndex += 1;
         customPosition = true;
         boardFen = event.detail.fen;
-        requestAnalysis(boardFen);
     }
 
     function handleKeydown(event) {
@@ -175,6 +184,20 @@
         event.preventDefault();
         goPrevious();
     }
+
+    onMount(() => {
+        const handleVisibilityChange = () => {
+            if (document.hidden) {
+                stopAnalysis();
+            } else if (interactive) {
+                requestAnalysis(boardFen, canonicalMove);
+            }
+        };
+        document.addEventListener("visibilitychange", handleVisibilityChange);
+        return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+    });
+
+    onDestroy(stopAnalysis);
 
 </script>
 

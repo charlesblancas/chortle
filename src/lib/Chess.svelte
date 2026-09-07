@@ -405,12 +405,12 @@
     });
 </script>
 
-<section class="chess" aria-labelledby="chess-title" aria-describedby="chess-help">
+<section class="chess" aria-labelledby="chess-title" aria-describedby="chess-help" use:fileHint>
     <h2 id="chess-title" class="sr-only">Chess board</h2>
     <p id="chess-help" class="sr-only">Select a legal piece and then its destination. Mouse and touch users can move directly on the board. Keyboard users can use the labelled square controls after the board.</p>
     <div class="board-grid">
         <div class="rank-labels" aria-hidden="true">{#each ranks as rank}<span>{rank}</span>{/each}</div>
-        <div class="board" class:piece-set-glyph={pieceSet === "glyph"} class:piece-set-image={IMAGE_PIECE_SETS.has(pieceSet)} class:piece-set-cburnett={pieceSet === "cburnett"} style={pieceAssetStyle} use:fileHint>
+        <div class="board" class:piece-set-glyph={pieceSet === "glyph"} class:piece-set-image={IMAGE_PIECE_SETS.has(pieceSet)} class:piece-set-cburnett={pieceSet === "cburnett"} style={pieceAssetStyle}>
             {#if highlightIndex >= 0}<div class="file-highlight" style={`left: ${highlightIndex * 12.5}%`}></div>{/if}
             <div class="board-visual" aria-hidden="true" on:pointerdown={rememberPointer} on:pointermove={trackPointer} on:click={handleBoardClick}><Chessground bind:this={chessground} coordinates={false} config={{ movable: { events: { after } } }} /></div>
             {#if mated}<div class="mate-banner" role="status">You are mated.</div>

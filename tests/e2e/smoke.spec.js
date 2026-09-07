@@ -124,3 +124,20 @@ test("solution replay keeps Backspace as previous", async ({ page }) => {
     await page.keyboard.press("Backspace");
     await expect(page.getByText(/Puzzle start · 0\//)).toBeVisible();
 });
+
+test("keyboard chess controls retain the selected square", async ({ page }) => {
+    await page.goto("/?fixture=solution-state");
+    await page.getByRole("dialog").getByRole("button", { name: "Understood" }).click();
+    await page.getByRole("dialog").getByRole("button", { name: "View solution" }).click();
+
+    const controls = page.locator(".solution-viewer .square-controls");
+    const king = controls.getByRole("button", { name: /C3, white king; select to choose a move/i });
+    await king.focus();
+    await page.keyboard.press("Enter");
+
+    const destination = controls.getByRole("button", { name: /C2, empty square; legal destination/i });
+    await expect(destination).toBeEnabled();
+    await destination.focus();
+    await page.keyboard.press("Enter");
+    await expect(page.getByText(/Custom position · 0\//)).toBeVisible();
+});
