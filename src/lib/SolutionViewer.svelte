@@ -301,8 +301,16 @@
     :global(.solution-viewer .chess .rank-labels) { left: -1.3rem; }
     @media (max-width: 420px) {
         .replay-controls button { font-size: 0.56rem; }
-        .replay-board { grid-template-columns: minmax(0, 1fr) 0.9rem; gap: 0.3rem; width: calc(100% - 1.8rem); margin-inline: 1.8rem 0; }
+        .replay-board { grid-template-columns: minmax(0, 1fr) 0.9rem; gap: 0.3rem; width: calc(100% - 3.5rem); margin-inline: 1.75rem 0; }
         :global(.solution-viewer .chess .rank-labels) { left: -1.3rem; }
+    }
+    @media (max-width: 420px) and (max-height: 760px) {
+        .position { margin-top: 0.35rem; margin-bottom: 0.1rem; }
+        .replay-board { width: calc(100% - 4rem); margin-inline: 2rem 0; }
+        .arrow-legend { margin-top: 0.2rem; }
+        .evaluation-text { margin-top: 0.2rem; }
+        .replay-controls { margin-top: 0.5rem; }
+        .close { margin-top: 0.35rem; }
     }
     @media (prefers-reduced-motion: reduce) {
         .white-share { transition: none; }

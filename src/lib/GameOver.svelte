@@ -107,8 +107,10 @@
         try {
             await navigator.share({
                 title: shareTitle,
-                text: `${shareTitle} ${solved ? `${attempts}/5` : "X/5"}\n${gameSummary}`,
-                url: "https://chortle.charlesblancas.com",
+                // Keep the complete result in one text field. iOS may append a
+                // separate `url` field to the text without preserving the
+                // intended line breaks in the receiving app.
+                text: shareMessage,
             });
             shareStatus = "Result shared.";
         } catch (error) {

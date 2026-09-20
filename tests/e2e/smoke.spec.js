@@ -349,8 +349,7 @@ test.describe("mobile result copying", () => {
         await expect(result.getByRole("status")).toHaveText("Result shared.");
         expect(await page.evaluate(() => window.__sharedResult)).toEqual({
             title: "CHORTLE BETA #0001",
-            text: "CHORTLE BETA #0001 1/5\n🟩🟩🟩🟩🟩",
-            url: "https://chortle.charlesblancas.com",
+            text: "CHORTLE BETA #0001 1/5\nhttps://chortle.charlesblancas.com\n🟩🟩🟩🟩🟩",
         });
     });
 
@@ -438,6 +437,51 @@ test("a solved game can replay its solution without changing the result", async 
     await page.getByRole("button", { name: "Back to result" }).click();
     await expect(page.getByRole("button", { name: "View solution" })).toBeVisible();
     await expect(page.getByText(/Solved in 1\/5/)).toBeVisible();
+});
+
+test.describe("compact solution replay", () => {
+    test.use(iPhone13);
+
+    test("keeps the replay inside the phone viewport", async ({ page }) => {
+        await page.goto("/?fixture=solution-state");
+        await page.getByRole("dialog", { name: "Find the word through the board." }).getByRole("button", { name: "Understood" }).click();
+        await page.getByRole("dialog", { name: /Solved in 1\/5/ }).getByRole("button", { name: "View solution" }).click();
+        await expect(page.getByRole("button", { name: "Back to result" })).toBeVisible();
+
+        const metrics = await page.evaluate(() => {
+            const viewer = document.querySelector(".solution-viewer")?.getBoundingClientRect();
+            return {
+                viewport: window.innerHeight,
+                scrollHeight: document.documentElement.scrollHeight,
+                viewerTop: viewer?.top,
+                viewerBottom: viewer?.bottom,
+            };
+        });
+        expect(metrics.scrollHeight).toBeLessThanOrEqual(metrics.viewport);
+        expect(metrics.viewerTop).toBeGreaterThanOrEqual(0);
+        expect(metrics.viewerBottom).toBeLessThanOrEqual(metrics.viewport);
+    });
+});
+
+test.describe("short solution replay", () => {
+    test.use(iPhoneSE);
+
+    test("keeps the replay inside the shortest phone viewport", async ({ page }) => {
+        await page.goto("/?fixture=solution-state");
+        await page.getByRole("dialog", { name: "Find the word through the board." }).getByRole("button", { name: "Understood" }).click();
+        await page.getByRole("dialog", { name: /Solved in 1\/5/ }).getByRole("button", { name: "View solution" }).click();
+        await expect(page.getByRole("button", { name: "Back to result" })).toBeVisible();
+
+        const metrics = await page.evaluate(() => ({
+            viewport: window.innerHeight,
+            scrollHeight: document.documentElement.scrollHeight,
+            viewerTop: document.querySelector(".solution-viewer")?.getBoundingClientRect().top,
+            viewerBottom: document.querySelector(".solution-viewer")?.getBoundingClientRect().bottom,
+        }));
+        expect(metrics.scrollHeight).toBeLessThanOrEqual(metrics.viewport);
+        expect(metrics.viewerTop).toBeGreaterThanOrEqual(0);
+        expect(metrics.viewerBottom).toBeLessThanOrEqual(metrics.viewport);
+    });
 });
 
 test("solution replay releases and reapplies the modal scroll lock", async ({ page }) => {
