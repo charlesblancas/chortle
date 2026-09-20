@@ -1,16 +1,9 @@
 <script>
     import { createEventDispatcher, onDestroy, onMount } from "svelte";
     import Chess from "./Chess.svelte";
-    import {
-        cacheSunfishAnalysis,
-        cancelSunfishAnalysis,
-        getCachedSunfishAnalysis,
-        nextSunfishAnalysisDepth,
-        seedSunfishAnalysis,
-        sunfishAnalyze,
-    } from "./sunfishEngine";
+    import { createAnalysisCoordinator } from "./analysisCoordinator";
     import { safeStorage } from "./gameStorage";
-    import { buildSolutionPositions, evaluationLabel, evaluationPercent, fenAfterUci, materialEvaluation } from "./solutionReplay";
+    import { buildSolutionPositions, evaluationLabel, evaluationPercent, materialEvaluation } from "./solutionReplay";
 
     export let fen;
     export let movesString;
@@ -28,8 +21,8 @@
     let customIndex = -1;
     let evaluation = materialEvaluation(positions[0].fen);
     let evaluationSource = "material fallback";
-    let analysisRequest = 0;
-    let analysisController;
+    const analysisCoordinator = createAnalysisCoordinator();
+    let analysisHasStarted = false;
     let analysisKey = "";
     let replayArrows = [];
     let arrowSource = "";
@@ -122,17 +115,8 @@
         return { orig: uci.slice(0, 2), dest: uci.slice(2, 4), brush };
     }
 
-    // The solution replay is allowed to spend time refining the answer. The
-    // live game still uses depth 2, but this view keeps asking for deeper
-    // searches without a depth or time limit until the position changes or
-    // the solution viewer is no longer active.
-    const ANALYSIS_TIMEOUT_MS = Infinity;
-
     function stopAnalysis() {
-        analysisRequest += 1;
-        analysisController?.abort();
-        analysisController = undefined;
-        cancelSunfishAnalysis();
+        analysisCoordinator.stop();
     }
 
     function setArrows(canonicalMove = "", sunfishMove = "") {
@@ -149,84 +133,35 @@
             : "";
     }
 
-    async function prefetchChildAnalysis(positionFen, request, controller) {
-        if (!positionFen || request !== analysisRequest || controller.signal.aborted) return;
-        if (getCachedSunfishAnalysis(positionFen)?.verified) return;
-        try {
-            const result = await sunfishAnalyze(positionFen, 2, ANALYSIS_TIMEOUT_MS, { signal: controller.signal });
-            if (request !== analysisRequest || controller.signal.aborted) return;
-            cacheSunfishAnalysis(positionFen, 2, result);
-        } catch (error) {
-            // Prefetching is a convenience only. The displayed position keeps
-            // its normal analysis loop if a child is invalid or cancelled.
-            if (controller.signal.aborted || request !== analysisRequest) return;
-        }
-    }
-
-    async function prefetchLikelyChildren(positionFen, canonicalMove, sunfishMove, request, controller) {
-        const childFens = new Set(
-            [canonicalMove, sunfishMove]
-                .map((move) => fenAfterUci(positionFen, move))
-                .filter(Boolean),
-        );
-        for (const childFen of childFens) {
-            if (request !== analysisRequest || controller.signal.aborted) return;
-            await prefetchChildAnalysis(childFen, request, controller);
-        }
-    }
-
     async function requestAnalysis(positionFen, canonicalMove = "") {
-        stopAnalysis();
-        const request = analysisRequest;
-        const controller = new AbortController();
-        analysisController = controller;
-        const cached = getCachedSunfishAnalysis(positionFen);
-        setArrows(canonicalMove, cached?.move);
-
         const fallback = materialEvaluation(positionFen);
-        if (cached && Number.isFinite(cached.score)) {
-            evaluation = cached.score;
-            evaluationSource = cached.verified
-                ? `Sunfish depth ${cached.depth} (cached)`
-                : `Sunfish depth ${cached.depth} from the suggested move (checking)`;
-        // Keep the last displayed score while the worker evaluates an unseen
-        // position. Replacing it immediately with material balance makes the
-        // bar visibly jump toward the centre between every move.
-        } else if (request === 1) {
-            evaluation = fallback;
-            evaluationSource = "material fallback";
-        } else {
-            evaluationSource = "Previous position (checking)";
-        }
-
-        for (let depth = nextSunfishAnalysisDepth(positionFen); request === analysisRequest; depth += 1) {
-            if (request !== analysisRequest) return;
-            let result;
-            for (let attempt = 0; attempt < 8; attempt += 1) {
-                if (request !== analysisRequest) return;
-                try {
-                    result = await sunfishAnalyze(positionFen, depth, ANALYSIS_TIMEOUT_MS, { signal: controller.signal });
-                    break;
-                } catch (error) {
-                    if (controller.signal.aborted || request !== analysisRequest) return;
-                    // A newer analysis may still be using the shared worker.
-                    // Give it a moment to finish before retrying this request.
-                    if (error?.message === "Sunfish search timed out") break;
-                    await new Promise((resolve) => setTimeout(resolve, 40));
+        await analysisCoordinator.start(positionFen, canonicalMove, {
+            onStart: ({ cached }) => {
+                setArrows(canonicalMove, cached?.move);
+                if (cached && Number.isFinite(cached.score)) {
+                    evaluation = cached.score;
+                    evaluationSource = cached.verified
+                        ? `Sunfish depth ${cached.depth} (cached)`
+                        : `Sunfish depth ${cached.depth} from the suggested move (checking)`;
+                // Keep the last displayed score while the worker evaluates an
+                // unseen position. Replacing it immediately with material
+                // balance makes the bar visibly jump between every move.
+                } else if (!analysisHasStarted) {
+                    evaluation = fallback;
+                    evaluationSource = "material fallback";
+                } else {
+                    evaluationSource = "Previous position (checking)";
                 }
-            }
-            if (request !== analysisRequest || !result) return;
-            cacheSunfishAnalysis(positionFen, depth, result);
-            if (Number.isFinite(result.score)) {
-                evaluation = result.score;
-                evaluationSource = `Sunfish depth ${depth}`;
-            }
-            const suggestion = arrowFor(result.move, "blue");
-            if (suggestion) {
-                setArrows(canonicalMove, result.move);
-            }
-            await prefetchLikelyChildren(positionFen, canonicalMove, result.move, request, controller);
-        }
+                analysisHasStarted = true;
+            },
+            onDepth: ({ depth, result }) => {
+                if (Number.isFinite(result.score)) {
+                    evaluation = result.score;
+                    evaluationSource = `Sunfish depth ${depth}`;
+                }
+                if (arrowFor(result.move, "blue")) setArrows(canonicalMove, result.move);
+            },
+        });
     }
 
     function goTo(index) {
@@ -235,11 +170,8 @@
         // Carry that score across when Next follows the exact Sunfish move, so
         // its bar never has to fall back to a neutral placeholder.
         if (!customPosition && nextIndex === positionIndex + 1) {
-            const parent = getCachedSunfishAnalysis(boardFen);
             const move = positions[nextIndex].move;
-            if (parent?.move?.toLowerCase() === move.toLowerCase()) {
-                seedSunfishAnalysis(positions[nextIndex].fen, parent);
-            }
+            analysisCoordinator.seedChild(boardFen, positions[nextIndex].fen, move);
         }
         positionIndex = nextIndex;
         customPosition = false;
@@ -281,10 +213,7 @@
     }
 
     function handleReplayMove(event) {
-        const cachedParent = getCachedSunfishAnalysis(boardFen);
-        if (cachedParent?.move?.toLowerCase() === event.detail.uci.toLowerCase()) {
-            seedSunfishAnalysis(event.detail.fen, cachedParent);
-        }
+        analysisCoordinator.seedChild(boardFen, event.detail.fen, event.detail.uci);
         const nextMove = positions[positionIndex + 1]?.move || "";
         if (!customPosition && nextMove && event.detail.uci === nextMove) {
             positionIndex += 1;
@@ -367,7 +296,6 @@
     .replay-controls { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.3rem; margin-top: 0.8rem; }
     .replay-controls button { min-width: 0; padding: 0.5rem 0.25rem; font-size: 0.62rem; }
     .close { display: block; margin: 0.55rem auto 0; padding: 0.45rem 0.6rem; font-size: 0.62rem; }
-    button:disabled { cursor: not-allowed; opacity: 0.4; }
     :global(.solution-viewer .chess) { margin: 0; width: 100%; }
     :global(.solution-viewer .chess .board-grid) { width: 100%; margin-inline: 0; }
     :global(.solution-viewer .chess .rank-labels) { left: -1.3rem; }

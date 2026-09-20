@@ -107,6 +107,19 @@ test("loads the daily game and closes the first-use instructions", async ({ page
     await expect(page.getByRole("group", { name: "Unused guess row" })).toHaveCount(4);
 });
 
+test("first-use instructions stay dismissed after a reload", async ({ page }) => {
+    await page.goto("/?fixture=mixed-entry");
+    const instructions = page.getByRole("dialog", { name: "Find the word through the board." });
+    await expect(instructions).toBeVisible();
+    await instructions.getByRole("button", { name: "Understood" }).click();
+    await expect(instructions).toBeHidden();
+
+    await page.reload();
+
+    await expect(page.getByRole("dialog", { name: "Find the word through the board." })).toBeHidden();
+    await expect(page.getByRole("region", { name: /Chess board/i })).toBeVisible();
+});
+
 test("production page serves the worker and board assets", async ({ page, request }) => {
     const responses = [];
     page.on("response", (response) => responses.push(response));
@@ -218,20 +231,144 @@ test("promotion traps keyboard focus and restores it after cancellation", async 
     await expect(pawn).toBeFocused();
 });
 
-test("copy result offers manual text when browser clipboard access fails", async ({ page }) => {
+test("share result offers manual text when desktop clipboard access fails", async ({ page }) => {
     await page.addInitScript(() => {
         Object.defineProperty(navigator, "clipboard", {
             configurable: true,
             value: { writeText: () => Promise.reject(new Error("Clipboard blocked")) },
         });
-        document.execCommand = () => false;
+        document.execCommand = () => { throw new Error("execCommand blocked"); };
     });
     await page.goto("/?fixture=solution-state");
     await page.getByRole("dialog").getByRole("button", { name: "Understood" }).click();
     const result = page.getByRole("dialog", { name: /Solved in 1\/5/ });
-    await result.getByRole("button", { name: "Copy result" }).click();
+    await result.getByRole("button", { name: "Share result" }).click();
     await expect(result.getByRole("status")).toHaveText(/Copy failed\. Select the result text below and copy it manually\./);
     await expect(result.getByRole("textbox", { name: "Result text to copy manually" })).toHaveValue(/CHORTLE BETA #0001 1\/5/);
+});
+
+test("result modal keeps its size when the share status appears", async ({ page }) => {
+    await page.addInitScript(() => {
+        Object.defineProperty(navigator, "clipboard", {
+            configurable: true,
+            value: { writeText: async () => {} },
+        });
+    });
+    await page.goto("/?fixture=solution-state");
+    await page.getByRole("dialog").getByRole("button", { name: "Understood" }).click();
+    const result = page.getByRole("dialog", { name: /Solved in 1\/5/ });
+    const before = await result.boundingBox();
+    await result.getByRole("button", { name: "Share result" }).click();
+    await expect(result.getByRole("status")).toHaveText("Result copied to the clipboard.");
+    const after = await result.boundingBox();
+
+    expect(after).not.toBeNull();
+    expect(after.width).toBe(before.width);
+    expect(after.height).toBe(before.height);
+});
+
+test("result actions keep readable text on their scarlet hover state", async ({ page }) => {
+    await page.goto("/?fixture=solution-state");
+    await page.getByRole("dialog").getByRole("button", { name: "Understood" }).click();
+    const result = page.getByRole("dialog", { name: /Solved in 1\/5/ });
+    for (const label of ["Share result", "View solution", "Reset puzzle"]) {
+        const button = result.getByRole("button", { name: label });
+        await button.hover();
+        expect(await button.evaluate((node) => {
+            const style = getComputedStyle(node);
+            return { color: style.color, background: style.backgroundColor };
+        })).toEqual({ color: "rgb(249, 248, 242)", background: "rgb(112, 45, 49)" });
+    }
+});
+
+test("repeated desktop sharing keeps the copied label while clipboard is pending", async ({ page }) => {
+    await page.addInitScript(() => {
+        let release;
+        Object.defineProperty(navigator, "clipboard", {
+            configurable: true,
+            value: {
+                writeText: () => new Promise((resolve) => { release = resolve; }),
+            },
+        });
+        window.__releaseClipboard = () => release?.();
+    });
+    await page.goto("/?fixture=solution-state");
+    await page.getByRole("dialog").getByRole("button", { name: "Understood" }).click();
+    const result = page.getByRole("dialog", { name: /Solved in 1\/5/ });
+    const share = result.getByRole("button", { name: "Share result" });
+
+    await share.click();
+    await page.evaluate(() => window.__releaseClipboard());
+    const copied = result.getByRole("button", { name: "Copied" });
+    await expect(copied).toBeVisible();
+    await expect(copied).toHaveClass(/copied/);
+    expect(await copied.evaluate((button) => {
+        const style = getComputedStyle(button);
+        return { color: style.color, background: style.backgroundColor };
+    })).toEqual({ color: "rgb(249, 248, 242)", background: "rgb(0, 121, 107)" });
+
+    await copied.click();
+    await expect(copied).toBeVisible();
+    await page.evaluate(() => window.__releaseClipboard());
+});
+
+test.describe("mobile result copying", () => {
+    test.use(iPhoneSE);
+
+    test("focuses the manual result text when mobile clipboard access is blocked", async ({ page }) => {
+        await page.addInitScript(() => {
+            Object.defineProperty(navigator, "clipboard", {
+                configurable: true,
+                value: { writeText: () => Promise.reject(new Error("Clipboard blocked")) },
+            });
+            document.execCommand = () => false;
+        });
+        await page.goto("/?fixture=solution-state");
+        await page.getByRole("dialog").getByRole("button", { name: "Understood" }).click();
+        const result = page.getByRole("dialog", { name: /Solved in 1\/5/ });
+        await result.getByRole("button", { name: "Share result" }).click();
+
+        const manualCopy = result.getByRole("textbox", { name: "Result text to copy manually" });
+        await expect(manualCopy).toBeVisible();
+        await expect(manualCopy).toBeFocused();
+        await expect(manualCopy).toHaveValue(/CHORTLE BETA #0001 1\/5/);
+    });
+
+    test("opens the native share sheet when mobile sharing is available", async ({ page }) => {
+        await page.addInitScript(() => {
+            Object.defineProperty(navigator, "share", {
+                configurable: true,
+                value: async (payload) => { window.__sharedResult = payload; },
+            });
+        });
+        await page.goto("/?fixture=solution-state");
+        await page.getByRole("dialog").getByRole("button", { name: "Understood" }).click();
+        const result = page.getByRole("dialog", { name: /Solved in 1\/5/ });
+        await result.getByRole("button", { name: "Share result" }).click();
+
+        await expect(result.getByRole("status")).toHaveText("Result shared.");
+        expect(await page.evaluate(() => window.__sharedResult)).toEqual({
+            title: "CHORTLE BETA #0001",
+            text: "CHORTLE BETA #0001 1/5\n🟩🟩🟩🟩🟩",
+            url: "https://chortle.charlesblancas.com",
+        });
+    });
+
+    test("does not report an error when the native share sheet is canceled", async ({ page }) => {
+        await page.addInitScript(() => {
+            Object.defineProperty(navigator, "share", {
+                configurable: true,
+                value: async () => { throw new DOMException("Canceled", "AbortError"); },
+            });
+        });
+        await page.goto("/?fixture=solution-state");
+        await page.getByRole("dialog").getByRole("button", { name: "Understood" }).click();
+        const result = page.getByRole("dialog", { name: /Solved in 1\/5/ });
+        await result.getByRole("button", { name: "Share result" }).click();
+
+        await expect(result.getByRole("status")).toHaveCount(0);
+        await expect(result.getByRole("button", { name: "Share result" })).toBeEnabled();
+    });
 });
 
 test("a solved game can replay its solution without changing the result", async ({ page }) => {
@@ -301,6 +438,23 @@ test("a solved game can replay its solution without changing the result", async 
     await page.getByRole("button", { name: "Back to result" }).click();
     await expect(page.getByRole("button", { name: "View solution" })).toBeVisible();
     await expect(page.getByText(/Solved in 1\/5/)).toBeVisible();
+});
+
+test("solution replay releases and reapplies the modal scroll lock", async ({ page }) => {
+    await page.goto("/?fixture=solution-state");
+    await page.getByRole("dialog", { name: "Find the word through the board." }).getByRole("button", { name: "Understood" }).click();
+
+    const result = page.getByRole("dialog", { name: /Solved in 1\/5/ });
+    await expect(result).toBeVisible();
+    expect(await page.evaluate(() => ({ position: document.body.style.position, overflow: document.body.style.overflow }))).toEqual({ position: "fixed", overflow: "hidden" });
+
+    await result.getByRole("button", { name: "View solution" }).click();
+    await expect(result).toBeHidden();
+    expect(await page.evaluate(() => ({ position: document.body.style.position, overflow: document.body.style.overflow }))).toEqual({ position: "", overflow: "" });
+
+    await page.getByRole("button", { name: "Back to result" }).click();
+    await expect(result).toBeVisible();
+    expect(await page.evaluate(() => ({ position: document.body.style.position, overflow: document.body.style.overflow }))).toEqual({ position: "fixed", overflow: "hidden" });
 });
 
 test("solution replay keeps Backspace as previous", async ({ page }) => {

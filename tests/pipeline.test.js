@@ -9,8 +9,9 @@ import { games } from "../src/games/final_games.js";
 import { chessMoveStatus, combineFeedbackStatuses, dailyPuzzleIndex, fileProjection, isCanonicalPlayerMove, isInteractiveKeyTarget, isMated, isPlayerMatedAfterReply, isSolvedGuess, scoreShareRow, scoreWord, shouldHandleWordGameKey, validatePuzzleRecord } from "../src/gameRules.js";
 import { chooseReply, isUciMove } from "../src/lib/tinyEngine.js";
 import { applyEngineReply, fastChessReply } from "../src/lib/fastChessEngine.js";
-import { gameStorageKey, normalizeSavedGame, readSavedGame, writeSavedGame } from "../src/lib/gameStorage.js";
+import { gameStorageKey, normalizeSavedGame, readSavedGame, safeStorage, writeSavedGame } from "../src/lib/gameStorage.js";
 import { buildSolutionPositions, evaluationLabel, evaluationPercent, fenAfterUci, materialEvaluation } from "../src/lib/solutionReplay.js";
+import { createAnalysisCoordinator } from "../src/lib/analysisCoordinator.js";
 import { cacheSunfishAnalysis, getCachedSunfishAnalysis, nextSunfishAnalysisDepth, seedSunfishAnalysis, sunfishAnalyze } from "../src/lib/sunfishEngine.js";
 
 const mixed = FIXTURES.find((fixture) => fixture.id === "mixed-entry");
@@ -313,6 +314,161 @@ test("Sunfish analysis cache restores moves and carries a suggested child score"
     assert.equal(nextSunfishAnalysisDepth("not-in-cache"), 2);
 });
 
+test("Sunfish cache never lets a parent seed replace a verified child", () => {
+    const parent = { depth: 12, move: "c3c2", score: 375, verified: true };
+    const childFen = "cache-child-with-direct-result";
+    cacheSunfishAnalysis(childFen, 7, { move: "d4d5", score: 410 });
+
+    seedSunfishAnalysis(childFen, parent);
+
+    assert.deepEqual(getCachedSunfishAnalysis(childFen), {
+        depth: 7,
+        move: "d4d5",
+        score: 410,
+        verified: true,
+    });
+});
+
+test("analysis coordinator owns progressive search, child prefetch, and cancellation", async () => {
+    const rootFen = "7k/8/8/8/8/8/8/K7 w - - 0 1";
+    const childFen = fenAfterUci(rootFen, "a1a2");
+    const cache = new Map();
+    const calls = [];
+    let cancelCount = 0;
+    let coordinator;
+    const engine = {
+        analyze: async (fen, depth, { signal } = {}) => {
+            await new Promise((resolve) => setTimeout(resolve, 0));
+            if (signal?.aborted) throw new Error("Sunfish analysis cancelled");
+            calls.push({ fen, depth });
+            return { move: "a1a2", score: depth * 100 };
+        },
+        getCached: (fen) => cache.get(fen) || null,
+        cache: (fen, depth, result) => cache.set(fen, { depth, move: result.move, score: result.score, verified: true }),
+        nextDepth: (fen) => (cache.get(fen)?.depth || 1) + 1,
+        seed: (fen, parent) => cache.set(fen, { depth: parent.depth, move: "", score: parent.score, verified: false }),
+        cancel: () => { cancelCount += 1; },
+    };
+    coordinator = createAnalysisCoordinator(engine);
+    const events = [];
+
+    await coordinator.start(rootFen, "a1a2", {
+        onStart: ({ cached }) => events.push({ type: "start", cached }),
+        onDepth: ({ depth }) => {
+            events.push({ type: "depth", depth });
+            if (depth === 3) coordinator.stop();
+        },
+    });
+
+    assert.deepEqual(events.map((event) => event.type === "depth" ? `depth-${event.depth}` : event.type), ["start", "depth-2", "depth-3"]);
+    assert.deepEqual(calls, [
+        { fen: rootFen, depth: 2 },
+        { fen: childFen, depth: 2 },
+        { fen: rootFen, depth: 3 },
+    ]);
+    assert.equal(cache.get(rootFen).depth, 3);
+    assert.equal(cache.get(childFen).depth, 2);
+    assert.equal(cancelCount, 1);
+});
+
+test("slow child prefetch is cancelled and foreground analysis continues", async () => {
+    const root = "7k/8/8/8/8/8/8/K7 w - - 0 1";
+    let childCalls = 0;
+    let childAborted = false;
+    const depths = [];
+    const coordinator = createAnalysisCoordinator({
+        analyze: (fen, depth, { signal }) => {
+            if (fen === root) return Promise.resolve({ move: "a1a2", score: 100 });
+            childCalls += 1;
+            return new Promise((resolve, reject) => {
+                signal.addEventListener("abort", () => {
+                    childAborted = true;
+                    reject(new Error("Sunfish analysis cancelled"));
+                }, { once: true });
+            });
+        },
+        getCached: () => null,
+        cache: () => {},
+        nextDepth: () => 2,
+        seed: () => {},
+        cancel: () => {},
+    });
+    await coordinator.start(root, "a1a2", {
+        onDepth: ({ depth }) => {
+            depths.push(depth);
+            if (depth === 4) coordinator.stop();
+        },
+    });
+    assert.equal(childAborted, true);
+    assert.equal(childCalls, 1);
+    assert.deepEqual(depths, [2, 3, 4]);
+});
+
+test("analysis resumes after worker contention outlasts the old retry limit", async () => {
+    let attempts = 0;
+    const scores = [];
+    const coordinator = createAnalysisCoordinator({
+        analyze: async () => {
+            if (++attempts <= 9) throw new Error("Sunfish is already searching");
+            return { move: "", score: 250 };
+        },
+        getCached: () => null,
+        cache: () => {},
+        nextDepth: () => 2,
+        seed: () => {},
+        cancel: () => {},
+    });
+    await coordinator.start("position", "", {
+        onDepth: ({ result }) => { scores.push(result.score); coordinator.stop(); },
+    });
+    assert.deepEqual(scores, [250]);
+});
+
+test("analysis coordinator suppresses stale callbacks when a position changes", async () => {
+    const calls = [];
+    let coordinator;
+    const engine = {
+        analyze: (fen, depth, { signal } = {}) => {
+            calls.push({ fen, depth });
+            if (fen === "old-position") {
+                return new Promise((resolve, reject) => {
+                    signal?.addEventListener("abort", () => reject(new Error("Sunfish analysis cancelled")), { once: true });
+                });
+            }
+            return Promise.resolve({ move: "", score: 100 });
+        },
+        getCached: () => null,
+        cache: () => {},
+        nextDepth: () => 2,
+        seed: () => {},
+        cancel: () => {},
+    };
+    coordinator = createAnalysisCoordinator(engine);
+    const oldEvents = [];
+    const newEvents = [];
+    const oldAnalysis = coordinator.start("old-position", "", {
+        onStart: () => oldEvents.push("start"),
+        onDepth: () => oldEvents.push("depth"),
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const newAnalysis = coordinator.start("new-position", "", {
+        onStart: () => newEvents.push("start"),
+        onDepth: () => {
+            newEvents.push("depth");
+            coordinator.stop();
+        },
+    });
+
+    await Promise.all([oldAnalysis, newAnalysis]);
+
+    assert.deepEqual(oldEvents, ["start"]);
+    assert.deepEqual(newEvents, ["start", "depth"]);
+    assert.deepEqual(calls, [
+        { fen: "old-position", depth: 2 },
+        { fen: "new-position", depth: 2 },
+    ]);
+});
+
 test("aborting before Sunfish is ready never starts a stale search", async () => {
     const originalWorker = globalThis.Worker;
     let worker;
@@ -345,6 +501,67 @@ test("aborting before Sunfish is ready never starts a stale search", async () =>
         assert.equal(worker.messages.some((message) => String(message).startsWith("go depth")), false);
         worker.emit("error", {});
     } finally {
+        globalThis.Worker = originalWorker;
+    }
+});
+
+test("aborting an active Sunfish search ignores a late best move", async () => {
+    const originalWorker = globalThis.Worker;
+    let worker;
+    class ActiveWorker {
+        constructor() {
+            worker = this;
+            this.listeners = new Map();
+            this.messages = [];
+            this.terminated = false;
+        }
+        addEventListener(type, listener) {
+            this.listeners.set(type, listener);
+        }
+        postMessage(message) {
+            this.messages.push(message);
+        }
+        terminate() {
+            this.terminated = true;
+        }
+        emit(type, event) {
+            this.listeners.get(type)?.(event);
+        }
+    }
+
+    globalThis.Worker = ActiveWorker;
+    try {
+        const controller = new AbortController();
+        const analysis = sunfishAnalyze("8/8/8/8/8/8/8/K6k w - - 0 1", 14, Infinity, { signal: controller.signal });
+        worker.emit("message", { data: "readyok" });
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        assert.equal(worker.messages.some((message) => String(message).startsWith("go depth 14")), true);
+
+        controller.abort();
+        await assert.rejects(analysis, /Sunfish analysis cancelled/);
+        assert.equal(worker.terminated, true);
+
+        const oldWorker = worker;
+        let settled = false;
+        const replacement = sunfishAnalyze("8/8/8/8/8/8/8/K6k w - - 0 1", 2, Infinity);
+        replacement.then(() => { settled = true; }, () => { settled = true; });
+        assert.notEqual(worker, oldWorker);
+        oldWorker.emit("message", { data: "readyok" });
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        assert.equal(worker.messages.some((message) => message.startsWith("go depth")), false);
+        worker.emit("message", { data: "readyok" });
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        oldWorker.emit("message", { data: "info depth 14 score cp 999" });
+        oldWorker.emit("message", { data: "bestmove e2e4" });
+        oldWorker.emit("error", {});
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        assert.equal(settled, false);
+        assert.equal(worker.terminated, false);
+        worker.emit("message", { data: "info depth 2 score cp 125" });
+        worker.emit("message", { data: "bestmove a1a2" });
+        assert.deepEqual(await replacement, { move: "a1a2", score: 125 });
+    } finally {
+        worker?.emit("error", {});
         globalThis.Worker = originalWorker;
     }
 });
@@ -398,6 +615,19 @@ test("daily game state is safely validated and round-trips through storage", () 
     assert.equal(normalizeSavedGame({ ...state, actions: [{ ...state.actions[0], uci: "not-a-move" }] }), null);
     assert.equal(normalizeSavedGame({ ...state, actionHistory: [[{ ...state.actions[0], uci: "not-a-move" }], [], [], [], []] }), null);
     assert.equal(normalizeSavedGame({ ...state, guesses: ["T", "", "", "", ""] }), null);
+});
+
+test("storage failures degrade to a safe no-op adapter", () => {
+    const brokenStorage = {
+        getItem() { throw new Error("blocked"); },
+        setItem() { throw new Error("blocked"); },
+        removeItem() { throw new Error("blocked"); },
+    };
+    const storage = safeStorage(brokenStorage);
+
+    assert.equal(storage.getItem("anything"), null);
+    assert.doesNotThrow(() => storage.setItem("anything", "value"));
+    assert.doesNotThrow(() => storage.removeItem("anything"));
 });
 
 test("a legacy exact word with a wrong chess sequence resumes instead of winning", () => {

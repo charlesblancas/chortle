@@ -29,7 +29,7 @@
             <p class="edition">Daily edition</p>
             <h1 class="title">Chortle <span class="beta">Beta</span></h1>
         </div>
-        <button class="help" type="button" aria-label={$showInstructions ? "Close instructions" : "Show instructions"} title={$showInstructions ? "Close instructions" : "Show instructions"} on:click={(event) => { toggleInstructions(); event.currentTarget.blur(); }}><span class="help-mark" aria-hidden="true">?</span></button>
+        <button class="help action-button" type="button" aria-label={$showInstructions ? "Close instructions" : "Show instructions"} title={$showInstructions ? "Close instructions" : "Show instructions"} on:click={(event) => { toggleInstructions(); event.currentTarget.blur(); }}><span class="help-mark" aria-hidden="true">?</span></button>
     </header>
     {#if import.meta.env.DEV}<DebugFixtures selected={fixture?.id || ""} {pieceSet} on:pieceSet={selectPieceSet} />{/if}
     <WordGame {fixture} {dayOverride} {pieceSet} />
@@ -44,7 +44,6 @@
     .beta { display: inline-block; margin-left: 0.18em; color: var(--burgundy); font: 700 0.24em/1 var(--mono); letter-spacing: 0.12em; vertical-align: middle; }
     .help { grid-column: 3; grid-row: 1; justify-self: end; align-self: start; width: 2.75rem; height: 2.75rem; min-width: 0; margin-top: 0.18rem; padding: 0; border: 1px solid var(--line); color: var(--muted); display: grid; place-items: center; box-sizing: border-box; appearance: none; -webkit-appearance: none; overflow: visible; font: 700 1rem/1 var(--sans); letter-spacing: 0; }
     .help-mark { display: block; height: 1.2rem; line-height: 1.2rem; font-size: 1rem; }
-    @media (hover: hover) { .help:hover { color: var(--panel); border-color: var(--burgundy); } }
     @media (max-width: 420px) {
         main { width: min(calc(100% - 1.25rem), 39rem); padding: 0.3rem 0.35rem 0; }
         .masthead { margin-bottom: 0.2rem; padding: 0.12rem 0 0.18rem; }

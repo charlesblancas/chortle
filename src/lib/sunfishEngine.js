@@ -194,10 +194,12 @@ function ensureWorker() {
     // production assets. A root-relative public URL breaks when the app is
     // deployed below a path and bypasses cache invalidation.
     worker = new Worker(new URL("./sunfish.worker.js", import.meta.url), { type: "classic" });
+    const owner = worker;
     ready = new Promise((resolve, reject) => {
         resolveReady = resolve;
         rejectReady = reject;
         readyTimer = setTimeout(() => {
+            if (worker !== owner) return;
             const error = new Error("Sunfish worker was not ready");
             reject(error);
             reset();
@@ -205,6 +207,9 @@ function ensureWorker() {
     });
 
     worker.addEventListener("message", (event) => {
+        // Termination does not retract already queued events. Every event
+        // belongs to this worker, never to its replacement's search/startup.
+        if (worker !== owner) return;
         const line = typeof event.data === "string" ? event.data : "";
         if (line === "readyok") {
             clearTimeout(readyTimer);
@@ -239,6 +244,7 @@ function ensureWorker() {
     });
 
     worker.addEventListener("error", () => {
+        if (worker !== owner) return;
         const error = new Error("Sunfish worker failed");
         rejectReady?.(error);
         if (pendingSearch?.timer) clearTimeout(pendingSearch.timer);

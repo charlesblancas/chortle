@@ -52,7 +52,12 @@ button {
   text-transform: uppercase;
   cursor: pointer;
 }
-@media (hover: hover) { button:hover { color: var(--panel); background: var(--burgundy); border-color: var(--burgundy); } }
+@media (hover: hover) {
+  button:hover,
+  button.action-button:hover { color: var(--panel); background: var(--burgundy); border-color: var(--burgundy); }
+}
 button:focus { outline: none; }
 button:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
-button:active { color: var(--panel); background: #542126; border-color: #542126; transform: translateY(1px); }
+button:active,
+button.action-button:active { color: var(--panel); background: #542126; border-color: #542126; transform: translateY(1px); }
+button:disabled { cursor: not-allowed; opacity: 0.4; }
