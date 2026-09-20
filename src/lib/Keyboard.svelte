@@ -60,4 +60,7 @@
         .keyboard :global(.key) { min-width: 0; min-height: var(--mobile-key-height, 2.45rem); margin-bottom: 0.1rem; padding-inline: 0.12rem; font-size: 0.72rem; }
         .keyboard :global(.utility-key) { font-size: 1.05rem; }
     }
+    @media (min-width: 511px) and (max-height: 1151px) {
+        .keyboard { padding: 0.35rem 0.75rem 0.15rem; }
+    }
 </style>

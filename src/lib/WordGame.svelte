@@ -321,4 +321,15 @@
         .game-play .guess-row.history-row,
         .game-play .guess-row.unused-row { --guess-tile-height: 1.35rem; }
     }
+    /* A 100%-zoom desktop browser is often only 1080px tall once its
+       chrome is accounted for. Preserve full-size tiles and board at that
+       width, but tighten the editorial spacing before the compact mobile
+       treatment is needed. */
+    @media (min-width: 511px) and (max-height: 1151px) {
+        .meta { padding: 0.25rem 0; }
+        .guesses { gap: 0.1rem; margin-top: 0.2rem; }
+        :global(.chess) { margin-top: 0.5rem; }
+        .rule { margin-top: 0.35rem; padding-top: 0.25rem; }
+        :global(.keyboard) { margin-top: 0.25rem; }
+    }
 </style>

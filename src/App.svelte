@@ -56,4 +56,7 @@
         .title { font-size: 1.85rem; }
         .masthead { margin-bottom: 0.1rem; padding-bottom: 0.1rem; }
     }
+    @media (min-width: 511px) and (max-height: 1151px) {
+        .masthead { margin-bottom: 0.2rem; padding: 0.1rem 0 0.15rem; }
+    }
 </style>

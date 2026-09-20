@@ -150,6 +150,21 @@ test("a full desktop viewport keeps the gameplay surface in view", async ({ page
     expect(metrics.keyboardBottom).toBeLessThanOrEqual(metrics.viewport);
 });
 
+test("a 1920px by 1080px desktop viewport never scrolls", async ({ page }) => {
+    await page.setViewportSize({ width: 1920, height: 1080 });
+    await page.goto("/?fixture=mixed-entry");
+    await page.getByRole("dialog").getByRole("button", { name: "Understood" }).click();
+    await page.locator(".debug-fixtures").evaluate((node) => node.remove());
+
+    const metrics = await page.evaluate(() => ({
+        viewport: innerHeight,
+        scrollHeight: document.documentElement.scrollHeight,
+        keyboardBottom: document.querySelector(".keyboard")?.getBoundingClientRect().bottom,
+    }));
+    expect(metrics.scrollHeight).toBeLessThanOrEqual(metrics.viewport);
+    expect(metrics.keyboardBottom).toBeLessThanOrEqual(metrics.viewport);
+});
+
 test("a mated fixture can be undone without leaving the board locked", async ({ page }) => {
     await page.goto("/?fixture=mate-state");
     await page.getByRole("dialog").getByRole("button", { name: "Understood" }).click();

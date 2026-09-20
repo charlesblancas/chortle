@@ -552,4 +552,9 @@
         .rank-labels { left: -1.8rem; }
         .square-control { min-width: 2.25rem; min-height: 2.5rem; }
     }
+    @media (min-width: 511px) and (max-height: 1151px) {
+        .board-grid { padding-bottom: 1rem; }
+        .rank-labels { bottom: 1rem; }
+        .file-labels { height: 1rem; }
+    }
 </style>
