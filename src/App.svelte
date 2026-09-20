@@ -58,4 +58,12 @@
     @media (min-width: 511px) and (max-height: 1151px) {
         .masthead { margin-bottom: 0.2rem; padding: 0.1rem 0 0.15rem; }
     }
+    @media (min-width: 511px) and (max-height: 600px) {
+        main { padding-top: 0.12rem; }
+        .masthead { margin-bottom: 0.05rem; padding: 0.02rem 0 0.04rem; }
+        .edition { font-size: 0.48rem; }
+        .title { margin-top: 0.08rem; font-size: 2rem; }
+        .help { width: 2rem; height: 2rem; margin-top: 0; font-size: 0.8rem; }
+        .help-mark { height: 1rem; line-height: 1rem; font-size: 0.8rem; }
+    }
 </style>

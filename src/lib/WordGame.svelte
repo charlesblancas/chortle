@@ -10,7 +10,7 @@
     import { possibilities } from "../games/possibilities";
     import { gameOver, showInstructions } from "../stores";
     import { dailyPuzzleIndex, isSolvedGuess, playerMoves, scoreWord, shouldHandleWordGameKey } from "../gameRules";
-    import { gameStorageKey, readSavedGame, removeSavedGame, safeStorage, writeSavedGame } from "./gameStorage";
+    import { browserStorage, gameStorageKey, readSavedGame, removeSavedGame, safeStorage, writeSavedGame } from "./gameStorage";
     import { onMount, tick } from "svelte";
 
     const FILE_LETTERS = "ABCDEFGH";
@@ -58,11 +58,11 @@
         // browser to discard and recreate the page.  localStorage is still
         // scoped to this origin, and safeStorage gracefully falls back to a
         // no-op in private/blocked-storage contexts.
-        return safeStorage(typeof window !== "undefined" ? window.localStorage : null);
+        return browserStorage("localStorage");
     }
 
     function legacyReplaySessionStorage() {
-        return safeStorage(typeof window !== "undefined" ? window.sessionStorage : null);
+        return browserStorage("sessionStorage");
     }
 
     function restoreSolutionView() {
@@ -331,5 +331,25 @@
         :global(.chess) { margin-top: 0.5rem; }
         .rule { margin-top: 0.35rem; padding-top: 0.25rem; }
         :global(.keyboard) { margin-top: 0.25rem; }
+    }
+    @media (min-width: 511px) and (max-height: 900px) {
+        .game-play {
+            --mobile-chess-width: min(32rem, 39vh);
+            --guess-tile-size: clamp(1.9rem, 4.8vh, 3.1rem);
+            --guess-row-gap: 0.2rem;
+            --guess-tile-gap: 0.2rem;
+        }
+        .guesses { margin-top: 0.1rem; }
+        .rule { display: none; }
+    }
+    @media (min-width: 511px) and (max-height: 600px) {
+        .game-play {
+            --mobile-chess-width: min(32rem, 26vh);
+            --guess-tile-size: clamp(1.25rem, 3.3vh, 1.5rem);
+            --guess-row-gap: 0.08rem;
+            --guess-tile-gap: 0.12rem;
+        }
+        .meta { padding: 0.08rem 0; font-size: 0.58rem; }
+        .rule { display: none; }
     }
 </style>

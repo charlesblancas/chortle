@@ -473,7 +473,7 @@
 <svelte:window on:keydown={handlePromotionKeydown} />
 
 <style>
-    .chess { width: min(100%, var(--mobile-chess-width, 32rem)); margin: clamp(0.65rem, 4vw, 1.25rem) auto 0; }
+    .chess { position: relative; width: min(100%, var(--mobile-chess-width, 32rem)); margin: clamp(0.65rem, 4vw, 1.25rem) auto 0; }
     .board-grid { position: relative; display: block; padding-bottom: 1.55rem; }
     .board { position: relative; width: 100%; aspect-ratio: 1; overflow: hidden; background: #e9e5db; container-type: inline-size; }
     .file-highlight { position: absolute; z-index: 2; top: 0; bottom: 0; width: 12.5%; pointer-events: none; background: rgba(112, 45, 49, 0.1); box-shadow: inset 0 0 0 2px rgba(112, 45, 49, 0.55); }
@@ -543,6 +543,26 @@
     .board.piece-set-cburnett :global(.cg-wrap piece::before) { content: none; display: none; }
     .square-controls { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 0.2rem; }
     .square-control { min-width: 2.5rem; min-height: 2.5rem; padding: 0.2rem; font-size: 0.62rem; }
+    /* Keep the square controls available to screen readers, while showing a
+       compact visual keyboard whenever a sighted keyboard user focuses one. */
+    .square-controls:focus-within {
+        position: absolute;
+        z-index: 8;
+        top: 0.5rem;
+        right: 0.5rem;
+        left: 0.5rem;
+        width: auto;
+        height: auto;
+        margin: 0;
+        padding: 0.45rem;
+        overflow: visible;
+        clip: auto;
+        white-space: normal;
+        border: 1px solid var(--ink);
+        background: var(--panel);
+        box-shadow: 0 0.25rem 0.8rem rgba(38, 50, 56, 0.18);
+    }
+    .square-controls:focus-within .square-control { min-width: 0; min-height: 2rem; }
     /* The board remains fluid between phone and desktop widths. Reserve only
        the rank-label gutter instead of jumping to a separate 18.5rem board at
        one arbitrary breakpoint. */
@@ -556,5 +576,17 @@
         .board-grid { padding-bottom: 1rem; }
         .rank-labels { bottom: 1rem; }
         .file-labels { height: 1rem; }
+    }
+    @media (min-width: 511px) and (max-height: 900px) {
+        .chess { margin-top: 0.3rem; }
+        .board-grid { padding-bottom: 0.8rem; }
+        .rank-labels { bottom: 0.8rem; }
+        .file-labels { height: 0.8rem; }
+    }
+    @media (min-width: 511px) and (max-height: 600px) {
+        .chess { margin-top: 0.2rem; }
+        .board-grid { padding-bottom: 0.5rem; }
+        .rank-labels { bottom: 0.5rem; font-size: 0.58rem; }
+        .file-labels { height: 0.5rem; font-size: 0.58rem; }
     }
 </style>

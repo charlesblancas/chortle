@@ -2,7 +2,7 @@
     import { createEventDispatcher, onDestroy, onMount } from "svelte";
     import Chess from "./Chess.svelte";
     import { createReplaySession } from "./replaySession.js";
-    import { safeStorage } from "./gameStorage";
+    import { browserStorage } from "./gameStorage";
     import { evaluationLabel, evaluationPercent } from "./solutionReplay";
 
     export let fen;
@@ -14,11 +14,11 @@
     const dispatch = createEventDispatcher();
 
     function replayStorage() {
-        return safeStorage(typeof window !== "undefined" ? window.localStorage : null);
+        return browserStorage("localStorage");
     }
 
     function legacyReplayStorage() {
-        return safeStorage(typeof window !== "undefined" ? window.sessionStorage : null);
+        return browserStorage("sessionStorage");
     }
 
     const session = createReplaySession({

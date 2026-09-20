@@ -63,4 +63,12 @@
     @media (min-width: 511px) and (max-height: 1151px) {
         .keyboard { padding: 0.35rem 0.75rem 0.15rem; }
     }
+    @media (min-width: 511px) and (max-height: 900px) {
+        .keyboard { padding: 0.25rem 0.55rem 0.1rem; margin-top: 0.45rem; }
+        .keyboard :global(.key) { min-height: 1.8rem; padding-block: 0.3rem; font-size: 0.68rem; }
+    }
+    @media (min-width: 511px) and (max-height: 600px) {
+        .keyboard { padding: 0.08rem 0.4rem 0.04rem; margin-top: 0.15rem; }
+        .keyboard :global(.key) { min-height: 1.35rem; padding-block: 0.16rem; font-size: 0.58rem; }
+    }
 </style>

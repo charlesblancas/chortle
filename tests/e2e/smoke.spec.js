@@ -156,6 +156,54 @@ test("short phones keep the keyboard inside the viewport and controls are isolat
     expect(await page.locator(".guess").first().innerText()).toBe("");
 });
 
+test("short desktop and landscape layouts never scroll", async ({ page }) => {
+    for (const size of [{ width: 1366, height: 768 }, { width: 844, height: 390 }]) {
+        await page.setViewportSize(size);
+        await page.goto("/?fixture=mixed-entry");
+        const instructions = page.getByRole("dialog", { name: "Find the word through the board." });
+        if (await instructions.isVisible()) {
+            await instructions.getByRole("button", { name: "Understood" }).click();
+        }
+        await page.locator(".debug-fixtures").evaluate((node) => node.remove());
+        const metrics = await page.evaluate(() => ({
+            viewport: innerHeight,
+            scrollHeight: document.documentElement.scrollHeight,
+            keyboardBottom: document.querySelector(".keyboard")?.getBoundingClientRect().bottom,
+        }));
+        expect(metrics.scrollHeight).toBeLessThanOrEqual(metrics.viewport);
+        expect(metrics.keyboardBottom).toBeLessThanOrEqual(metrics.viewport);
+    }
+});
+
+test("keyboard chess controls reveal the focused square", async ({ page }) => {
+    await page.goto("/?fixture=solution-state");
+    await page.getByRole("dialog").getByRole("button", { name: "Understood" }).click();
+    await page.getByRole("dialog", { name: /Solved in 1\/5/ }).getByRole("button", { name: "View solution" }).click();
+    const controls = page.locator(".solution-viewer .square-controls");
+    await controls.getByRole("button", { name: /C3, white king; select to choose a move/i }).focus();
+    const metrics = await controls.evaluate((node) => ({
+        clip: getComputedStyle(node).clip,
+        width: node.getBoundingClientRect().width,
+        height: node.getBoundingClientRect().height,
+    }));
+    expect(metrics.clip).not.toBe("rect(0px, 0px, 0px, 0px)");
+    expect(metrics.width).toBeGreaterThan(1);
+    expect(metrics.height).toBeGreaterThan(1);
+});
+
+test("blocked browser storage does not prevent the game from loading", async ({ page }) => {
+    const pageErrors = [];
+    page.on("pageerror", (error) => pageErrors.push(error.message));
+    await page.addInitScript(() => {
+        const denied = () => { throw new DOMException("Storage denied", "SecurityError"); };
+        Object.defineProperty(window, "localStorage", { configurable: true, get: denied });
+        Object.defineProperty(window, "sessionStorage", { configurable: true, get: denied });
+    });
+    await page.goto("/");
+    await expect(page.getByRole("region", { name: /Chess board/i })).toBeVisible();
+    expect(pageErrors).toEqual([]);
+});
+
 test("a full desktop viewport keeps the gameplay surface in view", async ({ page }) => {
     await page.setViewportSize({ width: 2048, height: 1152 });
     await page.goto("/?fixture=mixed-entry");

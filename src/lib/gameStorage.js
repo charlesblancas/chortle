@@ -28,6 +28,15 @@ export function safeStorage(storage) {
     }
 }
 
+/** Safely select a named browser store when its property accessor can throw. */
+export function browserStorage(name = "localStorage") {
+    try {
+        return safeStorage(typeof window !== "undefined" ? window[name] : null);
+    } catch {
+        return safeStorage(null);
+    }
+}
+
 export function gameStorageKey(day, game) {
     return `chortle:daily:v${STORAGE_VERSION}:${day}:${game.puzzleId || game.word}`;
 }
