@@ -90,4 +90,10 @@
         background-color: var(--panel);
         color: var(--text);
     }
+    /* The card receives programmatic focus to establish the dialog context.
+       Safari renders its default focus ring as a thick blue frame around the
+       entire modal; keep the context focus quiet and reserve the visible
+       indicator for keyboard-focused controls inside the dialog. */
+    .modal-card:focus { outline: none; }
+    .modal-card:focus-visible { outline: 2px solid var(--blue); outline-offset: -2px; }
 </style>
