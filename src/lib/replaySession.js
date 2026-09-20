@@ -1,3 +1,4 @@
+import { Chess } from "chess.js";
 import { createAnalysisCoordinator } from "./analysisCoordinator.js";
 import { buildSolutionPositions, materialEvaluation } from "./solutionReplay.js";
 
@@ -7,6 +8,16 @@ function clamp(value, minimum, maximum) {
 
 function validMove(value) {
     return /^[a-h][1-8][a-h][1-8][qrbn]?$/.test(value || "");
+}
+
+function validFen(value) {
+    if (typeof value !== "string") return false;
+    try {
+        new Chess(value);
+        return true;
+    } catch {
+        return false;
+    }
 }
 
 function readReplayState(storage, legacyStorage, key) {
@@ -51,8 +62,18 @@ export function createReplaySession({
     let analysisHasStarted = false;
     const listeners = new Set();
 
+    function clonePosition(position) {
+        return position ? { ...position } : position;
+    }
+
     function snapshot() {
-        return { ...state, position: positions[state.positionIndex], positions };
+        return {
+            ...state,
+            customTrail: state.customTrail.map((entry) => ({ ...entry })),
+            replayArrows: state.replayArrows.map((arrow) => ({ ...arrow })),
+            position: clonePosition(positions[state.positionIndex]),
+            positions: positions.map(clonePosition),
+        };
     }
 
     function publish() {
@@ -92,24 +113,37 @@ export function createReplaySession({
     function restore() {
         const saved = readReplayState(storage, legacyStorage, replayStateKey);
         if (saved && Number.isInteger(saved.positionIndex)) {
-            const positionIndex = clamp(saved.positionIndex, 0, positions.length - 1);
-            const customBaseIndex = clamp(saved.customBaseIndex || 0, 0, positions.length - 1);
-            const customTrail = Array.isArray(saved.customTrail)
-                ? saved.customTrail.filter((entry) => entry && validMove(entry.move) && typeof entry.fen === "string")
-                : [];
-            const customIndex = Number.isInteger(saved.customIndex)
-                ? clamp(saved.customIndex, -1, customTrail.length - 1)
-                : -1;
-            const customPosition = Boolean(saved.customPosition) && customIndex >= 0;
-            state = {
-                ...state,
-                positionIndex,
-                customPosition,
-                customBaseIndex,
-                customTrail,
-                customIndex,
-                boardFen: customPosition ? customTrail[customIndex].fen : positions[positionIndex].fen,
-            };
+            const customBaseIndex = saved.customBaseIndex === undefined ? 0 : saved.customBaseIndex;
+            const customTrail = saved.customTrail === undefined ? [] : saved.customTrail;
+            const customIndex = saved.customIndex === undefined ? -1 : saved.customIndex;
+            const customPosition = saved.customPosition === undefined ? false : saved.customPosition;
+            const validState = Number.isInteger(saved.positionIndex)
+                && saved.positionIndex >= 0
+                && saved.positionIndex < positions.length
+                && Number.isInteger(customBaseIndex)
+                && customBaseIndex >= 0
+                && customBaseIndex < positions.length
+                && Array.isArray(customTrail)
+                && customTrail.every((entry) => entry
+                    && validMove(entry.move)
+                    && validFen(entry.fen))
+                && Number.isInteger(customIndex)
+                && customIndex >= -1
+                && customIndex < customTrail.length
+                && typeof customPosition === "boolean"
+                && (!customPosition || customIndex >= 0);
+
+            if (validState) {
+                state = {
+                    ...state,
+                    positionIndex: saved.positionIndex,
+                    customPosition,
+                    customBaseIndex,
+                    customTrail: customTrail.map((entry) => ({ move: entry.move, fen: entry.fen })),
+                    customIndex,
+                    boardFen: customPosition ? customTrail[customIndex].fen : positions[saved.positionIndex].fen,
+                };
+            }
         }
         restored = true;
         publish();
@@ -274,7 +308,6 @@ export function createReplaySession({
     }
 
     return {
-        positions,
         getSnapshot: snapshot,
         subscribe,
         restore,

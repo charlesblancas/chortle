@@ -359,6 +359,40 @@ test("replay session starts and stops analysis through its interface", async () 
     session.dispose();
 });
 
+test("replay session discards malformed persisted branches and protects snapshots", () => {
+    const game = games.find((item) => item.word === "focal");
+    const storage = memoryStorage();
+    const initial = buildSolutionPositions(game.fen, game.moves);
+    storage.setItem("replay", JSON.stringify({
+        positionIndex: 0,
+        customPosition: true,
+        customBaseIndex: 0.5,
+        customTrail: [{ move: initial[1].move, fen: "not-a-fen" }],
+        customIndex: 0,
+        boardFen: "not-a-fen",
+    }));
+    const session = createReplaySession({
+        fen: game.fen,
+        movesString: game.moves,
+        replayStateKey: "replay",
+        storage,
+        analysisCoordinator: { start: async () => {}, stop: () => {}, seedChild: () => false },
+    });
+
+    session.restore();
+    const restored = session.getSnapshot();
+    assert.equal(restored.customPosition, false);
+    assert.equal(restored.boardFen, initial[0].fen);
+    assert.deepEqual(restored.customTrail, []);
+
+    restored.positions[0].fen = "tampered";
+    restored.customTrail.push({ move: initial[1].move, fen: initial[1].fen });
+    const unchanged = session.getSnapshot();
+    assert.equal(unchanged.positions[0].fen, initial[0].fen);
+    assert.deepEqual(unchanged.customTrail, []);
+    session.dispose();
+});
+
 test("solution evaluation fallback is deterministic and readable", () => {
     const start = new Chess();
     assert.equal(materialEvaluation(start.fen()), 0);
@@ -392,12 +426,19 @@ test("Sunfish analysis cache restores moves and carries a suggested child score"
 
     cacheSunfishAnalysis(childFen, 2, { move: "d4d5", score: 410 });
     assert.deepEqual(getCachedSunfishAnalysis(childFen), {
-        depth: 2,
+        depth: 14,
+        move: "",
+        score: 375,
+        verified: false,
+    });
+    assert.equal(nextSunfishAnalysisDepth(childFen), 15);
+    cacheSunfishAnalysis(childFen, 15, { move: "d4d5", score: 410 });
+    assert.deepEqual(getCachedSunfishAnalysis(childFen), {
+        depth: 15,
         move: "d4d5",
         score: 410,
         verified: true,
     });
-    assert.equal(nextSunfishAnalysisDepth(childFen), 3);
     assert.equal(nextSunfishAnalysisDepth("not-in-cache"), 2);
 });
 

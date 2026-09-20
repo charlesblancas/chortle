@@ -125,7 +125,10 @@ export function getCachedSunfishAnalysis(fen) {
 export function cacheSunfishAnalysis(fen, depth, result) {
     restoreAnalysisCache();
     const existing = analysisCache.get(fen);
-    if (existing?.verified && existing.depth > depth) return;
+    // A parent search can seed a deeper, provisional child result before the
+    // child gets its own direct search. Never replace that useful look-ahead
+    // with a shallower result just because it arrived later.
+    if (existing?.depth > depth) return;
     cacheAnalysis(fen, {
         depth,
         move: result.move || "",
