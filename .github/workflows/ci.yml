@@ -18,5 +18,6 @@ jobs:
       - run: npm audit --audit-level=high
       - run: npm run test:pipeline
       - run: npm run build
-      - run: npx playwright install --with-deps chromium
+      - run: npx playwright install --with-deps chromium webkit
       - run: npm run test:e2e
+      - run: PREVIEW=1 npx playwright test tests/e2e/production.spec.js

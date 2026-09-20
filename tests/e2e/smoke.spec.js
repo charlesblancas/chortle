@@ -107,6 +107,17 @@ test("loads the daily game and closes the first-use instructions", async ({ page
     await expect(page.getByRole("group", { name: "Unused guess row" })).toHaveCount(4);
 });
 
+test("instructions keep keyboard focus inside the dialog", async ({ page }) => {
+    await page.goto("/?fixture=mixed-entry");
+    const instructions = page.getByRole("dialog", { name: "Find the word through the board." });
+    await expect(instructions).toBeVisible();
+    await expect(instructions).toBeFocused();
+    await page.keyboard.press("Shift+Tab");
+    await expect(instructions.getByRole("button", { name: "Understood" })).toBeFocused();
+    await page.keyboard.press("Tab");
+    await expect(instructions.getByRole("button", { name: "Close instructions" })).toBeFocused();
+});
+
 test("first-use instructions stay dismissed after a reload", async ({ page }) => {
     await page.goto("/?fixture=mixed-entry");
     const instructions = page.getByRole("dialog", { name: "Find the word through the board." });

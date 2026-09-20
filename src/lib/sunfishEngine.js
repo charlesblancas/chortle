@@ -121,7 +121,7 @@ export function getCachedSunfishAnalysis(fen) {
     return { ...entry };
 }
 
-/** Keep the deepest directly-searched result for a FEN. */
+/** Keep the deepest result for a FEN, including provisional look-ahead. */
 export function cacheSunfishAnalysis(fen, depth, result) {
     restoreAnalysisCache();
     const existing = analysisCache.get(fen);
@@ -158,8 +158,10 @@ export function nextSunfishAnalysisDepth(fen) {
  * replace a direct result already cached for the child.
  */
 export function seedSunfishAnalysis(fen, parent) {
+    restoreAnalysisCache();
     if (!parent?.verified || !Number.isFinite(parent.score)) return;
-    if (analysisCache.get(fen)?.verified) return;
+    const existing = analysisCache.get(fen);
+    if (existing?.verified || existing?.depth >= parent.depth) return;
     cacheAnalysis(fen, {
         depth: parent.depth,
         move: "",

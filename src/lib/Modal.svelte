@@ -59,8 +59,10 @@
         if (!focusable.length) { event.preventDefault(); return; }
         const first = focusable[0];
         const last = focusable.at(-1);
-        if (event.shiftKey && (document.activeElement === first || !dialog.contains(document.activeElement))) { event.preventDefault(); last.focus(); }
-        else if (!event.shiftKey && (document.activeElement === last || !dialog.contains(document.activeElement))) { event.preventDefault(); first.focus(); }
+        const focusIsDialog = document.activeElement === dialog;
+        const focusIsOutside = !dialog.contains(document.activeElement);
+        if (event.shiftKey && (focusIsDialog || document.activeElement === first || focusIsOutside)) { event.preventDefault(); last.focus(); }
+        else if (!event.shiftKey && (focusIsDialog || document.activeElement === last || focusIsOutside)) { event.preventDefault(); first.focus(); }
     }
 </script>
 

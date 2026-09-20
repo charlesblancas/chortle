@@ -63,7 +63,9 @@ export function createReplaySession({
     const listeners = new Set();
 
     function clonePosition(position) {
-        return position ? { ...position } : position;
+        return position
+            ? { ...position, setup: position.setup ? { ...position.setup } : position.setup }
+            : position;
     }
 
     function snapshot() {

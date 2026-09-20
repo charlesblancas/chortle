@@ -386,9 +386,11 @@ test("replay session discards malformed persisted branches and protects snapshot
     assert.deepEqual(restored.customTrail, []);
 
     restored.positions[0].fen = "tampered";
+    restored.positions[0].setup.move = "a1a8";
     restored.customTrail.push({ move: initial[1].move, fen: initial[1].fen });
     const unchanged = session.getSnapshot();
     assert.equal(unchanged.positions[0].fen, initial[0].fen);
+    assert.equal(unchanged.positions[0].setup.move, initial[0].setup.move);
     assert.deepEqual(unchanged.customTrail, []);
     session.dispose();
 });
@@ -431,6 +433,7 @@ test("Sunfish analysis cache restores moves and carries a suggested child score"
         score: 375,
         verified: false,
     });
+    seedSunfishAnalysis(childFen, { depth: 4, score: 20, verified: true });
     assert.equal(nextSunfishAnalysisDepth(childFen), 15);
     cacheSunfishAnalysis(childFen, 15, { move: "d4d5", score: 410 });
     assert.deepEqual(getCachedSunfishAnalysis(childFen), {
