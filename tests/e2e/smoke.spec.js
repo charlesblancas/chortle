@@ -41,11 +41,12 @@ test.describe("compact iPhone gameplay", () => {
         expect(metrics.touchAction).toBe("manipulation");
         expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(1);
 
-        // A submitted row becomes history. It must not push the next active
-        // row below the board or keyboard in compact play.
+        // A submitted row stays visible as history. Empty future rows are the
+        // only rows compact play is allowed to hide.
         await page.keyboard.type("jolly");
         await page.keyboard.press("Enter");
         await expect(page.getByText("Attempt 2/5")).toBeVisible();
+        await expect(page.getByRole("group", { name: "Submitted guess row, scored" })).toBeVisible();
         metrics = await compactGameMetrics(page);
         expect(metrics.scrollHeight).toBeLessThanOrEqual(metrics.viewport);
         expect(metrics.active.bottom).toBeLessThanOrEqual(metrics.viewport);
@@ -278,6 +279,18 @@ test("switching tabs does not reset the active solution analysis", async ({ page
     });
     await page.waitForTimeout(100);
     expect(await page.evaluate(() => window.__sunfishTerminations)).toBe(before);
+});
+
+test("a restored solution replay keeps its place after a browser reload", async ({ page }) => {
+    await page.goto("/?fixture=solution-state");
+    await page.getByRole("dialog").getByRole("button", { name: "Understood" }).click();
+    await page.getByRole("dialog").getByRole("button", { name: "View solution" }).click();
+    await page.getByRole("button", { name: "Show next move" }).click();
+    await expect(page.getByText(/Move 1:.*1\//)).toBeVisible();
+
+    await page.reload();
+    await expect(page.locator(".solution-viewer .chess")).toBeVisible();
+    await expect(page.getByText(/Move 1:.*1\//)).toBeVisible();
 });
 
 test("keyboard chess controls retain the selected square", async ({ page }) => {

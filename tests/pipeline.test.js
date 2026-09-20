@@ -11,7 +11,7 @@ import { chooseReply, isUciMove } from "../src/lib/tinyEngine.js";
 import { applyEngineReply, fastChessReply } from "../src/lib/fastChessEngine.js";
 import { gameStorageKey, normalizeSavedGame, readSavedGame, writeSavedGame } from "../src/lib/gameStorage.js";
 import { buildSolutionPositions, evaluationLabel, evaluationPercent, fenAfterUci, materialEvaluation } from "../src/lib/solutionReplay.js";
-import { cacheSunfishAnalysis, getCachedSunfishAnalysis, seedSunfishAnalysis, sunfishAnalyze } from "../src/lib/sunfishEngine.js";
+import { cacheSunfishAnalysis, getCachedSunfishAnalysis, nextSunfishAnalysisDepth, seedSunfishAnalysis, sunfishAnalyze } from "../src/lib/sunfishEngine.js";
 
 const mixed = FIXTURES.find((fixture) => fixture.id === "mixed-entry");
 
@@ -305,6 +305,8 @@ test("Sunfish analysis cache restores moves and carries a suggested child score"
         score: 410,
         verified: true,
     });
+    assert.equal(nextSunfishAnalysisDepth(childFen), 3);
+    assert.equal(nextSunfishAnalysisDepth("not-in-cache"), 2);
 });
 
 test("aborting before Sunfish is ready never starts a stale search", async () => {

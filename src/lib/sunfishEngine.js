@@ -1,6 +1,7 @@
 const SEARCH_TIMEOUT_MS = 300;
 const READY_TIMEOUT_MS = 1000;
 const ANALYSIS_CACHE_LIMIT = 96;
+const ANALYSIS_CACHE_STORAGE_KEY = "chortle:sunfish-analysis-v1";
 
 let worker;
 let ready;
@@ -9,8 +10,51 @@ let rejectReady;
 let readyTimer;
 let pendingSearch;
 const analysisCache = new Map();
+let analysisCacheRestored = false;
+
+function analysisStorage() {
+    try {
+        return typeof window !== "undefined" ? window.sessionStorage : null;
+    } catch {
+        return null;
+    }
+}
+
+function restoreAnalysisCache() {
+    if (analysisCacheRestored) return;
+    analysisCacheRestored = true;
+    try {
+        const entries = JSON.parse(analysisStorage()?.getItem(ANALYSIS_CACHE_STORAGE_KEY) || "[]");
+        if (!Array.isArray(entries)) return;
+        for (const [fen, entry] of entries.slice(-ANALYSIS_CACHE_LIMIT)) {
+            if (
+                typeof fen !== "string"
+                || !entry
+                || !Number.isInteger(entry.depth)
+                || entry.depth < 1
+                || typeof entry.move !== "string"
+                || (entry.score !== null && !Number.isFinite(entry.score))
+                || typeof entry.verified !== "boolean"
+            ) continue;
+            analysisCache.set(fen, { ...entry });
+        }
+    } catch {
+        // Analysis is an optional optimisation. A bad or unavailable session
+        // store must never stop the board from opening.
+    }
+}
+
+function persistAnalysisCache() {
+    try {
+        analysisStorage()?.setItem(ANALYSIS_CACHE_STORAGE_KEY, JSON.stringify([...analysisCache]));
+    } catch {
+        // Session storage can be unavailable or full; the in-memory cache is
+        // still useful for this page.
+    }
+}
 
 function cacheAnalysis(fen, entry) {
+    restoreAnalysisCache();
     // Refreshing the insertion order makes this a small, predictable LRU
     // cache instead of keeping every position the player visits forever.
     analysisCache.delete(fen);
@@ -18,6 +62,7 @@ function cacheAnalysis(fen, entry) {
     if (analysisCache.size > ANALYSIS_CACHE_LIMIT) {
         analysisCache.delete(analysisCache.keys().next().value);
     }
+    persistAnalysisCache();
 }
 
 function analysisCancelledError() {
@@ -52,6 +97,7 @@ function waitForWorkerReady(signal) {
  * inherited from a suggested parent move is deliberately marked unverified.
  */
 export function getCachedSunfishAnalysis(fen) {
+    restoreAnalysisCache();
     const entry = analysisCache.get(fen);
     if (!entry) return null;
     cacheAnalysis(fen, entry);
@@ -60,6 +106,7 @@ export function getCachedSunfishAnalysis(fen) {
 
 /** Keep the deepest directly-searched result for a FEN. */
 export function cacheSunfishAnalysis(fen, depth, result) {
+    restoreAnalysisCache();
     const existing = analysisCache.get(fen);
     if (existing?.verified && existing.depth > depth) return;
     cacheAnalysis(fen, {
@@ -68,6 +115,16 @@ export function cacheSunfishAnalysis(fen, depth, result) {
         score: Number.isFinite(result.score) ? result.score : null,
         verified: true,
     });
+}
+
+/**
+ * Continue a directly searched position from the next depth rather than
+ * re-running the shallow depths every time replay navigation returns to it.
+ * A parent-derived value still gets a real depth-2 confirmation first.
+ */
+export function nextSunfishAnalysisDepth(fen) {
+    const entry = getCachedSunfishAnalysis(fen);
+    return entry?.verified ? Math.max(2, entry.depth + 1) : 2;
 }
 
 /**

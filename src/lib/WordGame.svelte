@@ -50,6 +50,16 @@
     let autoResultSubscription;
     const dateLabel = new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "long", year: "numeric" }).format(new Date());
     $: storageKey = gameStorageKey(selectedDay, game);
+    $: replayStateKey = `chortle:replay-state:${fixture?.id || storageKey}`;
+    $: solutionViewKey = `chortle:replay-open:${fixture?.id || storageKey}`;
+
+    function replaySessionStorage() {
+        return safeStorage(typeof window !== "undefined" ? window.sessionStorage : null);
+    }
+
+    function restoreSolutionView() {
+        solutionViewing = replaySessionStorage().getItem(solutionViewKey) === "open";
+    }
 
     function saveGame(completed = $gameOver) {
         if (!hydrated || fixture) return;
@@ -57,6 +67,7 @@
     }
 
     onMount(() => {
+        restoreSolutionView();
         if (!fixture) {
             const saved = readSavedGame(storage, storageKey);
             if (saved) {
@@ -222,10 +233,12 @@
 
     function openSolution() {
         solutionViewing = true;
+        replaySessionStorage().setItem(solutionViewKey, "open");
     }
 
     function closeSolution() {
         solutionViewing = false;
+        replaySessionStorage().removeItem(solutionViewKey);
     }
 </script>
 
@@ -234,14 +247,14 @@
 <GameOver word={answer} {statuses} {guesses} {actionHistory} {solutionMoves} {solved} day={selectedDay} attempts={currentRow + 1} {solutionViewing} on:viewSolution={openSolution} on:reset={resetDebugGame} />
 <div class="guesses">
     {#each guesses as guess, index}
-        <div class="guess-row" class:active-row={index === currentRow}>
+        <div class="guess-row" class:active-row={index === currentRow} class:unused-row={index > currentRow}>
             <Guess status={statuses[index]} word={guess} active={index === currentRow} previewLetter={index === currentRow ? previewLetter : ""} actions={index === currentRow ? actions : actionHistory[index]} {solutionMoves} />
         </div>
     {/each}
 </div>
 <GameError {message} />
 {#if $gameOver && solved}
-    <SolutionViewer fen={game.fen} movesString={game.moves} {pieceSet} interactive={solutionViewing} on:close={closeSolution} />
+    <SolutionViewer fen={game.fen} movesString={game.moves} {pieceSet} {replayStateKey} interactive={solutionViewing} on:close={closeSolution} />
 {:else}
     <Chess fen={game.fen} movesString={game.moves} {actions} {mated} {terminal} {pieceSet} disabled={mated || terminal || engineThinking || promotionPending || guesses[currentRow].length >= 5} {highlightFile} on:move={chessLetter} on:resolve={resolveChessMove} on:thinking={(event) => engineThinking = event.detail.active} on:promotion={handlePromotion} on:preview={(event) => previewLetter = event.detail.letter} />
     {#if guesses[currentRow].length >= 5 && !$gameOver}<p class="row-ready">Row complete · press Enter to submit or Backspace to revise.</p>{/if}
@@ -261,17 +274,17 @@
         .meta span + span::before { margin-right: 0.2rem; }
         .rule { display: none; }
         .row-ready { margin: 0.45rem auto 0; font-size: 0.64rem; }
-        .guesses { gap: 0.18rem; margin-top: 0.25rem; }
+        .guesses { gap: 0.18rem; margin-top: 0; }
         :global(.keyboard) { margin-top: 0; }
     }
     @media (max-width: 420px) {
-        /* A five-row grid, full board and keyboard cannot coexist on a short
-           phone. Keep the live row on screen; the attempt label and keyboard
-           feedback preserve the progress signal while playing. */
-        .guess-row:not(.active-row) { display: none; }
+        /* Keep every submitted guess visible. Only the blank future rows are
+            removed from compact phone layout; they carry no useful feedback. */
+        .guess-row.unused-row { display: none; }
+        .guesses { gap: 0.05rem; }
     }
     @media (max-width: 420px) and (max-height: 760px) {
-        .guesses { gap: 0.18rem; margin-top: 0.25rem; }
+        .guesses { gap: 0.05rem; margin-top: 0; }
         :global(.keyboard) { margin-top: 0.15rem; }
     }
 </style>

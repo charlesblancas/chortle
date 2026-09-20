@@ -1,19 +1,22 @@
 <script>
-    import { createEventDispatcher, onDestroy } from "svelte";
+    import { createEventDispatcher, onDestroy, onMount } from "svelte";
     import Chess from "./Chess.svelte";
     import {
         cacheSunfishAnalysis,
         cancelSunfishAnalysis,
         getCachedSunfishAnalysis,
+        nextSunfishAnalysisDepth,
         seedSunfishAnalysis,
         sunfishAnalyze,
     } from "./sunfishEngine";
+    import { safeStorage } from "./gameStorage";
     import { buildSolutionPositions, evaluationLabel, evaluationPercent, fenAfterUci, materialEvaluation } from "./solutionReplay";
 
     export let fen;
     export let movesString;
     export let pieceSet = "cburnett";
     export let interactive = false;
+    export let replayStateKey = "";
 
     const dispatch = createEventDispatcher();
     const positions = buildSolutionPositions(fen, movesString);
@@ -30,6 +33,48 @@
     let analysisKey = "";
     let replayArrows = [];
     let arrowSource = "";
+    let replayStateRestored = false;
+
+    function replayStorage() {
+        return safeStorage(typeof window !== "undefined" ? window.sessionStorage : null);
+    }
+
+    function saveReplayState() {
+        if (!replayStateRestored || !replayStateKey) return;
+        try {
+            replayStorage().setItem(replayStateKey, JSON.stringify({
+                positionIndex,
+                customPosition,
+                customBaseIndex,
+                customTrail,
+                customIndex,
+                boardFen,
+            }));
+        } catch {
+            // Session replay state is a convenience only.
+        }
+    }
+
+    function restoreReplayState() {
+        if (!replayStateKey) return;
+        try {
+            const saved = JSON.parse(replayStorage().getItem(replayStateKey) || "null");
+            if (!saved || !Number.isInteger(saved.positionIndex)) return;
+            positionIndex = Math.max(0, Math.min(positions.length - 1, saved.positionIndex));
+            customBaseIndex = Math.max(0, Math.min(positions.length - 1, saved.customBaseIndex || 0));
+            customTrail = Array.isArray(saved.customTrail)
+                ? saved.customTrail.filter((entry) => entry && /^[a-h][1-8][a-h][1-8][qrbn]?$/.test(entry.move || "") && typeof entry.fen === "string")
+                : [];
+            customIndex = Number.isInteger(saved.customIndex)
+                ? Math.max(-1, Math.min(customTrail.length - 1, saved.customIndex))
+                : -1;
+            customPosition = Boolean(saved.customPosition) && customIndex >= 0;
+            boardFen = customPosition ? customTrail[customIndex].fen : positions[positionIndex].fen;
+        } catch {
+            // A stale or malformed state should simply open the replay at its
+            // puzzle start.
+        }
+    }
 
     $: position = positions[positionIndex];
     $: displayMove = customPosition ? customTrail[customIndex]?.move || "" : position.move || position.setup?.move || "";
@@ -51,6 +96,15 @@
         if (requestedAnalysisKey) requestAnalysis(boardFen, canonicalMove);
         else stopAnalysis();
     }
+    $: replayStateSignature = replayStateRestored && JSON.stringify({
+        positionIndex,
+        customPosition,
+        customBaseIndex,
+        customTrail,
+        customIndex,
+        boardFen,
+    });
+    $: if (replayStateSignature) saveReplayState();
 
     function arrowFor(uci, brush) {
         if (!/^[a-h][1-8][a-h][1-8]/.test(uci)) return null;
@@ -134,7 +188,7 @@
             evaluationSource = "Previous position (checking)";
         }
 
-        for (let depth = 2; request === analysisRequest; depth += 1) {
+        for (let depth = nextSunfishAnalysisDepth(positionFen); request === analysisRequest; depth += 1) {
             if (request !== analysisRequest) return;
             let result;
             for (let attempt = 0; attempt < 8; attempt += 1) {
@@ -165,7 +219,18 @@
     }
 
     function goTo(index) {
-        positionIndex = Math.max(0, Math.min(positions.length - 1, index));
+        const nextIndex = Math.max(0, Math.min(positions.length - 1, index));
+        // A completed parent search has already evaluated its preferred child.
+        // Carry that score across when Next follows the exact Sunfish move, so
+        // its bar never has to fall back to a neutral placeholder.
+        if (!customPosition && nextIndex === positionIndex + 1) {
+            const parent = getCachedSunfishAnalysis(boardFen);
+            const move = positions[nextIndex].move;
+            if (parent?.move?.toLowerCase() === move.toLowerCase()) {
+                seedSunfishAnalysis(positions[nextIndex].fen, parent);
+            }
+        }
+        positionIndex = nextIndex;
         customPosition = false;
         customTrail = [];
         customIndex = -1;
@@ -235,6 +300,11 @@
         event.preventDefault();
         goPrevious();
     }
+
+    onMount(() => {
+        restoreReplayState();
+        replayStateRestored = true;
+    });
 
     onDestroy(stopAnalysis);
 
