@@ -473,7 +473,7 @@
 <svelte:window on:keydown={handlePromotionKeydown} />
 
 <style>
-    .chess { width: min(100%, 32rem); margin: clamp(0.65rem, 4vw, 1.75rem) auto 0; }
+    .chess { width: min(100%, var(--mobile-chess-width, 32rem)); margin: clamp(0.65rem, 4vw, 1.75rem) auto 0; }
     .board-grid { position: relative; display: block; padding-bottom: 1.55rem; }
     .board { position: relative; width: 100%; aspect-ratio: 1; overflow: hidden; background: #e9e5db; container-type: inline-size; }
     .file-highlight { position: absolute; z-index: 2; top: 0; bottom: 0; width: 12.5%; pointer-events: none; background: rgba(112, 45, 49, 0.1); box-shadow: inset 0 0 0 2px rgba(112, 45, 49, 0.55); }
@@ -547,7 +547,7 @@
        the rank-label gutter instead of jumping to a separate 18.5rem board at
        one arbitrary breakpoint. */
     @media (max-width: 420px) {
-        .chess { width: min(100%, 32rem); margin-top: 0.45rem; }
+        .chess { width: min(100%, var(--mobile-chess-width, 32rem)); margin-top: 0.45rem; }
         .board-grid { width: calc(100% - 1.8rem); margin-inline: 1.8rem 0; }
         .rank-labels { left: -1.8rem; }
         .square-control { min-width: 2.25rem; min-height: 2.5rem; }

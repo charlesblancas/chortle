@@ -54,11 +54,21 @@
     $: solutionViewKey = `chortle:replay-open:${fixture?.id || storageKey}`;
 
     function replaySessionStorage() {
+        // Keep the replay open/position across an app switch that causes the
+        // browser to discard and recreate the page.  localStorage is still
+        // scoped to this origin, and safeStorage gracefully falls back to a
+        // no-op in private/blocked-storage contexts.
+        return safeStorage(typeof window !== "undefined" ? window.localStorage : null);
+    }
+
+    function legacyReplaySessionStorage() {
         return safeStorage(typeof window !== "undefined" ? window.sessionStorage : null);
     }
 
     function restoreSolutionView() {
-        solutionViewing = replaySessionStorage().getItem(solutionViewKey) === "open";
+        const saved = replaySessionStorage().getItem(solutionViewKey)
+            || legacyReplaySessionStorage().getItem(solutionViewKey);
+        solutionViewing = saved === "open";
     }
 
     function saveGame(completed = $gameOver) {
@@ -228,39 +238,49 @@
 
     function resetDebugGame() {
         if (!fixture) removeSavedGame(storage, storageKey);
+        replaySessionStorage().removeItem(solutionViewKey);
+        replaySessionStorage().removeItem(replayStateKey);
+        legacyReplaySessionStorage().removeItem(solutionViewKey);
+        legacyReplaySessionStorage().removeItem(replayStateKey);
         window.location.reload();
     }
 
     function openSolution() {
         solutionViewing = true;
         replaySessionStorage().setItem(solutionViewKey, "open");
+        legacyReplaySessionStorage().removeItem(solutionViewKey);
     }
 
     function closeSolution() {
         solutionViewing = false;
         replaySessionStorage().removeItem(solutionViewKey);
+        legacyReplaySessionStorage().removeItem(solutionViewKey);
     }
 </script>
 
 <Instructions />
 <div class="meta"><span>Puzzle {String(selectedDay).padStart(4, "0")}</span><span>{dateLabel}</span><span>Attempt {currentRow + 1}/{ROWS}</span></div>
 <GameOver word={answer} {statuses} {guesses} {actionHistory} {solutionMoves} {solved} day={selectedDay} attempts={currentRow + 1} {solutionViewing} on:viewSolution={openSolution} on:reset={resetDebugGame} />
-<div class="guesses">
-    {#each guesses as guess, index}
-        <div class="guess-row" class:active-row={index === currentRow} class:unused-row={index > currentRow}>
-            <Guess status={statuses[index]} word={guess} active={index === currentRow} previewLetter={index === currentRow ? previewLetter : ""} actions={index === currentRow ? actions : actionHistory[index]} {solutionMoves} />
+<div class="game-play" class:history-compact={currentRow > 0}>
+    <div class="guesses">
+        {#each guesses as guess, index}
+            <div class="guess-row" class:active-row={index === currentRow} class:history-row={index < currentRow} class:unused-row={index > currentRow}>
+                <Guess status={statuses[index]} word={guess} active={index === currentRow} previewLetter={index === currentRow ? previewLetter : ""} actions={index === currentRow ? actions : actionHistory[index]} {solutionMoves} />
+            </div>
+        {/each}
+    </div>
+    <GameError {message} />
+    {#if $gameOver && solved}
+        <SolutionViewer fen={game.fen} movesString={game.moves} {pieceSet} {replayStateKey} interactive={solutionViewing} on:close={closeSolution} />
+    {:else}
+        <div class="live-play">
+            <Chess fen={game.fen} movesString={game.moves} {actions} {mated} {terminal} {pieceSet} disabled={mated || terminal || engineThinking || promotionPending || guesses[currentRow].length >= 5} {highlightFile} on:move={chessLetter} on:resolve={resolveChessMove} on:thinking={(event) => engineThinking = event.detail.active} on:promotion={handlePromotion} on:preview={(event) => previewLetter = event.detail.letter} />
+            {#if guesses[currentRow].length >= 5 && !$gameOver}<p class="row-ready">Row complete · press Enter to submit or Backspace to revise.</p>{/if}
+            <p class="rule">A–H are played from the board.</p>
+            <Keyboard {keyStatuses} on:key={(event) => input(event.detail.key)} />
         </div>
-    {/each}
+    {/if}
 </div>
-<GameError {message} />
-{#if $gameOver && solved}
-    <SolutionViewer fen={game.fen} movesString={game.moves} {pieceSet} {replayStateKey} interactive={solutionViewing} on:close={closeSolution} />
-{:else}
-    <Chess fen={game.fen} movesString={game.moves} {actions} {mated} {terminal} {pieceSet} disabled={mated || terminal || engineThinking || promotionPending || guesses[currentRow].length >= 5} {highlightFile} on:move={chessLetter} on:resolve={resolveChessMove} on:thinking={(event) => engineThinking = event.detail.active} on:promotion={handlePromotion} on:preview={(event) => previewLetter = event.detail.letter} />
-    {#if guesses[currentRow].length >= 5 && !$gameOver}<p class="row-ready">Row complete · press Enter to submit or Backspace to revise.</p>{/if}
-    <p class="rule">A–H are played from the board.</p>
-    <Keyboard {keyStatuses} on:key={(event) => input(event.detail.key)} />
-{/if}
 <svelte:window on:keydown={handleWindowKeydown} on:click={clearGuidance} />
 
 <style>
@@ -268,6 +288,7 @@
     .meta span + span::before { content: "·"; margin-right: 0.55rem; color: var(--burgundy); }
     .rule { max-width: 30rem; margin: 0.9rem auto 0; padding-top: 0.65rem; border-top: 1px solid var(--line); text-align: center; color: var(--muted); font: 700 0.7rem/1 var(--sans); letter-spacing: 0.08em; text-transform: uppercase; }
     .row-ready { margin: 0.55rem auto -0.3rem; color: var(--burgundy); text-align: center; font: 700 0.7rem/1.25 var(--sans); letter-spacing: 0.04em; }
+    .game-play { --mobile-chess-width: 32rem; }
     .guesses { display: flex; flex-direction: column; align-items: center; gap: .25rem; margin: 0.4rem 0 0; }
     @media (max-width: 510px) {
         .meta { gap: 0.2rem; font-size: 0.56rem; }
@@ -276,6 +297,14 @@
         .row-ready { margin: 0.45rem auto 0; font-size: 0.64rem; }
         .guesses { gap: 0.18rem; margin-top: 0; }
         :global(.keyboard) { margin-top: 0; }
+        .game-play.history-compact { --mobile-chess-width: 16rem; --mobile-key-height: 2.1rem; }
+        .game-play.history-compact .guess-row.history-row {
+            --guess-tile-size: 1.42rem;
+            --guess-letter-size: 0.78rem;
+            --guess-move-size: 0px;
+            --guess-row-gap: 0.1rem;
+            --guess-tile-gap: 0.1rem;
+        }
     }
     @media (max-width: 420px) {
         /* Keep every submitted guess visible. Only the blank future rows are
@@ -286,5 +315,6 @@
     @media (max-width: 420px) and (max-height: 760px) {
         .guesses { gap: 0.05rem; margin-top: 0; }
         :global(.keyboard) { margin-top: 0.15rem; }
+        .game-play.history-compact { --mobile-chess-width: 14rem; --mobile-key-height: 2rem; }
     }
 </style>

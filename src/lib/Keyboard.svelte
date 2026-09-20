@@ -57,7 +57,7 @@
     @media (max-width: 420px) {
         .row { gap: 0.15rem; }
         .keyboard { margin-top: 0.25rem; padding: 0.3rem 0.35rem 0.2rem; }
-        .keyboard :global(.key) { min-width: 0; min-height: 2.45rem; margin-bottom: 0.1rem; padding-inline: 0.12rem; font-size: 0.72rem; }
+        .keyboard :global(.key) { min-width: 0; min-height: var(--mobile-key-height, 2.45rem); margin-bottom: 0.1rem; padding-inline: 0.12rem; font-size: 0.72rem; }
         .keyboard :global(.utility-key) { font-size: 1.05rem; }
     }
 </style>

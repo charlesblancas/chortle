@@ -51,6 +51,20 @@ test.describe("compact iPhone gameplay", () => {
         expect(metrics.scrollHeight).toBeLessThanOrEqual(metrics.viewport);
         expect(metrics.active.bottom).toBeLessThanOrEqual(metrics.viewport);
         expect(metrics.keyboard.bottom).toBeLessThanOrEqual(metrics.viewport);
+
+        // Keep every submitted row visible as the history grows. These words
+        // deliberately avoid A–H so the test exercises the mobile layout
+        // without depending on a particular chess position.
+        for (const word of ["intro", "irons", "irony"]) {
+            await page.keyboard.type(word);
+            await page.keyboard.press("Enter");
+            await expect(page.getByRole("group", { name: "Submitted guess row, scored" })).toHaveCount(
+                ["intro", "irons", "irony"].indexOf(word) + 2,
+            );
+            metrics = await compactGameMetrics(page);
+            expect(metrics.scrollHeight).toBeLessThanOrEqual(metrics.viewport);
+            expect(metrics.keyboard.bottom).toBeLessThanOrEqual(metrics.viewport);
+        }
     });
 });
 

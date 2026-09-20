@@ -27,8 +27,8 @@
 <style>
     div {
         position: relative;
-        width: clamp(2.7rem, 10vw, 3.35rem);
-        height: clamp(2.7rem, 10vw, 3.35rem);
+        width: var(--guess-tile-size, clamp(2.7rem, 10vw, 3.35rem));
+        height: var(--guess-tile-size, clamp(2.7rem, 10vw, 3.35rem));
         border: 1px solid var(--ink);
         display: grid;
         grid-template-rows: minmax(0, 1fr) minmax(0, 0.42fr);
@@ -36,9 +36,9 @@
     }
 
     .letter, .move { display: grid; place-items: center; }
-    .letter { font: 700 clamp(1.15rem, 4vw, 1.45rem)/1 var(--sans); letter-spacing: 0.03em; }
+    .letter { font: 700 var(--guess-letter-size, clamp(1.15rem, 4vw, 1.45rem))/1 var(--sans); letter-spacing: 0.03em; }
     .move {
-        font: 700 clamp(0.42rem, 1.5vw, 0.52rem)/1 var(--mono);
+        font: 700 var(--guess-move-size, clamp(0.42rem, 1.5vw, 0.52rem))/1 var(--mono);
         letter-spacing: -0.035em;
         white-space: nowrap;
     }
@@ -61,8 +61,8 @@
         color: var(--panel);
     }
     @media (max-width: 420px) {
-        div { width: clamp(2.15rem, 13vw, 2.75rem); height: clamp(2.15rem, 13vw, 2.75rem); }
-        .letter { font-size: clamp(0.95rem, 4.5vw, 1.25rem); }
-        .move { font-size: clamp(0.36rem, 1.7vw, 0.48rem); }
+        div { width: var(--guess-tile-size, clamp(2.15rem, 13vw, 2.75rem)); height: var(--guess-tile-size, clamp(2.15rem, 13vw, 2.75rem)); }
+        .letter { font-size: var(--guess-letter-size, clamp(0.95rem, 4.5vw, 1.25rem)); }
+        .move { font-size: var(--guess-move-size, clamp(0.36rem, 1.7vw, 0.48rem)); }
     }
 </style>

@@ -53,11 +53,11 @@
 <style>
     .guess {
         display: flex;
-        gap: 0.5rem;
+        gap: var(--guess-row-gap, 0.5rem);
     }
 
     .tiles {
         display: flex;
-        gap: 0.3rem;
+        gap: var(--guess-tile-gap, 0.3rem);
     }
 </style>

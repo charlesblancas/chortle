@@ -14,6 +14,18 @@ let analysisCacheRestored = false;
 
 function analysisStorage() {
     try {
+        // Keep exact-FEN analysis available after an app switch/page discard.
+        // This is intentionally a small LRU cache, so localStorage is safe to
+        // use here while still allowing the in-memory path when storage is
+        // unavailable.
+        return typeof window !== "undefined" ? window.localStorage : null;
+    } catch {
+        return null;
+    }
+}
+
+function legacyAnalysisStorage() {
+    try {
         return typeof window !== "undefined" ? window.sessionStorage : null;
     } catch {
         return null;
@@ -24,7 +36,12 @@ function restoreAnalysisCache() {
     if (analysisCacheRestored) return;
     analysisCacheRestored = true;
     try {
-        const entries = JSON.parse(analysisStorage()?.getItem(ANALYSIS_CACHE_STORAGE_KEY) || "[]");
+        const storage = analysisStorage();
+        const entries = JSON.parse(
+            storage?.getItem(ANALYSIS_CACHE_STORAGE_KEY)
+            || legacyAnalysisStorage()?.getItem(ANALYSIS_CACHE_STORAGE_KEY)
+            || "[]",
+        );
         if (!Array.isArray(entries)) return;
         for (const [fen, entry] of entries.slice(-ANALYSIS_CACHE_LIMIT)) {
             if (
@@ -124,7 +141,12 @@ export function cacheSunfishAnalysis(fen, depth, result) {
  */
 export function nextSunfishAnalysisDepth(fen) {
     const entry = getCachedSunfishAnalysis(fen);
-    return entry?.verified ? Math.max(2, entry.depth + 1) : 2;
+    // A provisional child still contains a real parent search depth and a
+    // useful score.  Restarting at depth 2 made Next visibly throw away the
+    // look-ahead result even though this exact FEN had already been visited.
+    // Continue from the cached depth; the next direct result will replace the
+    // provisional entry and mark it verified.
+    return entry?.depth ? Math.max(2, entry.depth + 1) : 2;
 }
 
 /**

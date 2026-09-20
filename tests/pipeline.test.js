@@ -297,6 +297,10 @@ test("Sunfish analysis cache restores moves and carries a suggested child score"
         score: 375,
         verified: false,
     });
+    // A provisional look-ahead still represents a real depth-14 search.  The
+    // next position must continue from there rather than visibly restarting
+    // at depth 2 when the player presses Next.
+    assert.equal(nextSunfishAnalysisDepth(childFen), 15);
 
     cacheSunfishAnalysis(childFen, 2, { move: "d4d5", score: 410 });
     assert.deepEqual(getCachedSunfishAnalysis(childFen), {

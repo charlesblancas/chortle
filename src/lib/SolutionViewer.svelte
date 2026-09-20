@@ -36,6 +36,13 @@
     let replayStateRestored = false;
 
     function replayStorage() {
+        // A phone may discard a background tab while the user is in another
+        // app.  Persisting this small replay cursor in localStorage lets the
+        // viewer reopen at the same move instead of jumping back to start.
+        return safeStorage(typeof window !== "undefined" ? window.localStorage : null);
+    }
+
+    function legacyReplayStorage() {
         return safeStorage(typeof window !== "undefined" ? window.sessionStorage : null);
     }
 
@@ -58,7 +65,11 @@
     function restoreReplayState() {
         if (!replayStateKey) return;
         try {
-            const saved = JSON.parse(replayStorage().getItem(replayStateKey) || "null");
+            const saved = JSON.parse(
+                replayStorage().getItem(replayStateKey)
+                || legacyReplayStorage().getItem(replayStateKey)
+                || "null",
+            );
             if (!saved || !Number.isInteger(saved.positionIndex)) return;
             positionIndex = Math.max(0, Math.min(positions.length - 1, saved.positionIndex));
             customBaseIndex = Math.max(0, Math.min(positions.length - 1, saved.customBaseIndex || 0));
