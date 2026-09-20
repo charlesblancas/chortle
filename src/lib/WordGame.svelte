@@ -295,7 +295,7 @@
         .meta span + span::before { margin-right: 0.2rem; }
         .rule { display: none; }
         .row-ready { margin: 0.45rem auto 0; font-size: 0.64rem; }
-        .guesses { gap: 0.18rem; margin-top: 0; }
+        .guesses { gap: 0.18rem; margin-top: 0.4rem; }
         :global(.keyboard) { margin-top: 0; }
         /* Keep all five rows in the grid.  Non-active rows are compressed
             vertically, but retain the active row's column width and gaps so
@@ -312,10 +312,10 @@
         }
     }
     @media (max-width: 420px) {
-        .guesses { gap: 0.05rem; }
+        .guesses { gap: 0.05rem; margin-top: 0.4rem; }
     }
     @media (max-width: 420px) and (max-height: 760px) {
-        .guesses { gap: 0.05rem; margin-top: 0; }
+        .guesses { gap: 0.05rem; margin-top: 0.4rem; }
         :global(.keyboard) { margin-top: 0.15rem; }
         .game-play { --mobile-chess-width: 14rem; --mobile-key-height: 2rem; }
         .game-play .guess-row.history-row,

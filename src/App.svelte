@@ -39,14 +39,14 @@
     .edition { margin: 0; color: var(--muted); font: 700 0.6rem/1 var(--sans); letter-spacing: 0.14em; text-transform: uppercase; }
     .title { margin: 0.25rem 0 0; font: 700 clamp(2.25rem, 7vw, 3.35rem)/0.88 var(--display); letter-spacing: -0.07em; text-transform: uppercase; }
     .beta { display: inline-block; margin-left: 0.18em; color: var(--burgundy); font: 700 0.24em/1 var(--mono); letter-spacing: 0.12em; vertical-align: middle; }
-    .help { position: absolute; top: 0.18rem; right: 0; width: 2.75rem; height: 2.75rem; min-width: 0; padding: 0; border: 1px solid var(--line); color: var(--muted); font: 700 1rem/1 var(--sans); letter-spacing: 0; }
+    .help { position: absolute; top: 0.18rem; right: 0; width: 2.75rem; height: 2.75rem; min-width: 0; padding: 0; border: 1px solid var(--line); color: var(--muted); display: grid; place-items: center; box-sizing: border-box; font: 700 1rem/1.2 var(--sans); letter-spacing: 0; }
     @media (hover: hover) { .help:hover { color: var(--panel); border-color: var(--burgundy); } }
     @media (max-width: 420px) {
         main { width: min(calc(100% - 1.25rem), 39rem); padding: 0.3rem 0.35rem 0; }
         .masthead { margin-bottom: 0.2rem; padding: 0.12rem 0 0.18rem; }
         .edition { font-size: 0.56rem; }
         .title { margin-top: 0.12rem; font-size: clamp(1.9rem, 11vw, 2.45rem); }
-        .help { top: 0.12rem; right: 0.1rem; }
+        .help { top: 0.18rem; right: 0.1rem; }
     }
     @media (max-width: 420px) and (max-height: 760px) {
         .title { font-size: 1.85rem; }
