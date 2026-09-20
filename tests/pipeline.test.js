@@ -12,6 +12,7 @@ import { applyEngineReply, fastChessReply } from "../src/lib/fastChessEngine.js"
 import { gameStorageKey, normalizeSavedGame, readSavedGame, safeStorage, writeSavedGame } from "../src/lib/gameStorage.js";
 import { buildSolutionPositions, evaluationLabel, evaluationPercent, fenAfterUci, materialEvaluation } from "../src/lib/solutionReplay.js";
 import { createAnalysisCoordinator } from "../src/lib/analysisCoordinator.js";
+import { createReplaySession } from "../src/lib/replaySession.js";
 import { cacheSunfishAnalysis, getCachedSunfishAnalysis, nextSunfishAnalysisDepth, seedSunfishAnalysis, sunfishAnalyze } from "../src/lib/sunfishEngine.js";
 
 const mixed = FIXTURES.find((fixture) => fixture.id === "mixed-entry");
@@ -28,6 +29,15 @@ function sunfishMove(engine, fen, depth = 2) {
     engine.engine(`position fen ${fen}`, (line) => output.push(line));
     engine.engine(`go depth ${depth}`, (line) => output.push(line));
     return output.findLast((line) => line.startsWith("bestmove "))?.split(/\s+/)[1] || "";
+}
+
+function memoryStorage() {
+    const values = new Map();
+    return {
+        getItem: (key) => values.get(key) || null,
+        setItem: (key, value) => values.set(key, String(value)),
+        removeItem: (key) => values.delete(key),
+    };
 }
 
 function sunfishEvaluation(engine, fen, depth = 1) {
@@ -270,6 +280,83 @@ test("solution replay derives exact child FENs for normal and promotion moves", 
     assert.equal(fenAfterUci(promotionFen, "a7a8q"), promoted.fen());
     assert.equal(fenAfterUci(promotionFen, "a7a8"), "");
     assert.equal(fenAfterUci(promotionFen, "not-a-move"), "");
+});
+
+test("replay session owns canonical navigation, alternate branches, and persistence", () => {
+    const game = games.find((item) => item.word === "focal");
+    const storage = memoryStorage();
+    const coordinator = { start: async () => {}, stop: () => {}, seedChild: () => false };
+    const session = createReplaySession({
+        fen: game.fen,
+        movesString: game.moves,
+        replayStateKey: "replay",
+        storage,
+        analysisCoordinator: coordinator,
+    });
+
+    session.restore();
+    assert.equal(session.getSnapshot().positionIndex, 0);
+    session.goTo(1);
+    assert.equal(session.getSnapshot().positionIndex, 1);
+
+    session.goTo(0);
+    const start = session.getSnapshot();
+    const chess = new Chess(start.boardFen);
+    const canonical = start.positions[1].move;
+    const alternative = chess.moves({ verbose: true })
+        .map((move) => `${move.from}${move.to}${move.promotion || ""}`)
+        .find((move) => move !== canonical);
+    assert.ok(alternative, "fixture should have an alternate legal move");
+    const childFen = fenAfterUci(start.boardFen, alternative);
+
+    session.playMove({ uci: alternative, fen: childFen });
+    const branched = session.getSnapshot();
+    assert.equal(branched.customPosition, true);
+    assert.equal(branched.customBaseIndex, 0);
+    assert.deepEqual(branched.customTrail, [{ move: alternative, fen: childFen }]);
+    assert.equal(JSON.parse(storage.getItem("replay")).customPosition, true);
+
+    const restored = createReplaySession({
+        fen: game.fen,
+        movesString: game.moves,
+        replayStateKey: "replay",
+        storage,
+        analysisCoordinator: coordinator,
+    });
+    restored.restore();
+    assert.equal(restored.getSnapshot().customPosition, true);
+    assert.equal(restored.getSnapshot().boardFen, childFen);
+    restored.previous();
+    assert.equal(restored.getSnapshot().positionIndex, 0);
+    assert.equal(restored.getSnapshot().customPosition, false);
+    session.dispose();
+    restored.dispose();
+});
+
+test("replay session starts and stops analysis through its interface", async () => {
+    const game = games.find((item) => item.word === "focal");
+    const calls = [];
+    let stopCount = 0;
+    const coordinator = {
+        start: async (fen, canonicalMove, { onStart, onDepth }) => {
+            calls.push({ fen, canonicalMove });
+            onStart({ cached: null });
+            onDepth({ depth: 2, result: { move: canonicalMove, score: 240 } });
+        },
+        stop: () => { stopCount += 1; },
+        seedChild: () => false,
+    };
+    const session = createReplaySession({ fen: game.fen, movesString: game.moves, analysisCoordinator: coordinator });
+    session.restore();
+    session.setInteractive(true);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].canonicalMove, session.getSnapshot().positions[1].move);
+    assert.equal(session.getSnapshot().evaluation, 240);
+    session.setInteractive(false);
+    assert.equal(stopCount, 1);
+    session.dispose();
 });
 
 test("solution evaluation fallback is deterministic and readable", () => {
