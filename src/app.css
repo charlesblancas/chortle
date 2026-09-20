@@ -33,6 +33,12 @@ html { overflow-x: clip; }
 body { margin: 0; min-width: 320px; min-height: 100vh; overflow-x: clip; background: var(--main); }
 #app { min-height: 0; }
 
+/* Suppress the mobile browser's double-tap zoom on gameplay surfaces without
+   taking away pinch zoom, which remains important for low-vision players. */
+@media (pointer: coarse) {
+  main { touch-action: manipulation; }
+}
+
 *, *::before, *::after { box-sizing: border-box; }
 
 button {

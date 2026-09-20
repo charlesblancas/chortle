@@ -234,7 +234,9 @@
 <GameOver word={answer} {statuses} {guesses} {actionHistory} {solutionMoves} {solved} day={selectedDay} attempts={currentRow + 1} {solutionViewing} on:viewSolution={openSolution} on:reset={resetDebugGame} />
 <div class="guesses">
     {#each guesses as guess, index}
-        <Guess status={statuses[index]} word={guess} active={index === currentRow} previewLetter={index === currentRow ? previewLetter : ""} actions={index === currentRow ? actions : actionHistory[index]} {solutionMoves} />
+        <div class="guess-row" class:active-row={index === currentRow}>
+            <Guess status={statuses[index]} word={guess} active={index === currentRow} previewLetter={index === currentRow ? previewLetter : ""} actions={index === currentRow ? actions : actionHistory[index]} {solutionMoves} />
+        </div>
     {/each}
 </div>
 <GameError {message} />
@@ -261,6 +263,12 @@
         .row-ready { margin: 0.45rem auto 0; font-size: 0.64rem; }
         .guesses { gap: 0.18rem; margin-top: 0.25rem; }
         :global(.keyboard) { margin-top: 0; }
+    }
+    @media (max-width: 420px) {
+        /* A five-row grid, full board and keyboard cannot coexist on a short
+           phone. Keep the live row on screen; the attempt label and keyboard
+           feedback preserve the progress signal while playing. */
+        .guess-row:not(.active-row) { display: none; }
     }
     @media (max-width: 420px) and (max-height: 760px) {
         .guesses { gap: 0.18rem; margin-top: 0.25rem; }

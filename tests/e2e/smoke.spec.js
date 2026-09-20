@@ -1,4 +1,71 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, devices } from "@playwright/test";
+
+const { defaultBrowserType: _iPhone13Browser, ...iPhone13 } = devices["iPhone 13"];
+const { defaultBrowserType: _iPhoneSEBrowser, ...iPhoneSE } = devices["iPhone SE"];
+
+async function compactGameMetrics(page) {
+    return page.evaluate(() => {
+        const bounds = (selector) => {
+            const rect = document.querySelector(selector)?.getBoundingClientRect();
+            return rect && { top: rect.top, bottom: rect.bottom };
+        };
+        return {
+            viewport: window.innerHeight,
+            scrollHeight: document.documentElement.scrollHeight,
+            touchAction: getComputedStyle(document.querySelector("main")).touchAction,
+            active: bounds(".guess.active"),
+            board: bounds(".board"),
+            keyboard: bounds(".keyboard"),
+        };
+    });
+}
+
+test.describe("compact iPhone gameplay", () => {
+    test.use(iPhone13);
+
+    test("keeps the active row, board, and keyboard in one viewport", async ({ page }) => {
+        await page.goto("/?fixture=duplicate-score");
+        const instructions = page.getByRole("dialog", { name: "Find the word through the board." });
+        const understood = instructions.getByRole("button", { name: "Understood" });
+        await expect(understood).toBeVisible();
+        const instructionBox = await understood.boundingBox();
+        expect(instructionBox.y + instructionBox.height).toBeLessThanOrEqual(await page.evaluate(() => innerHeight));
+        await understood.click();
+
+        let metrics = await compactGameMetrics(page);
+        expect(metrics.scrollHeight).toBeLessThanOrEqual(metrics.viewport);
+        expect(metrics.active.top).toBeGreaterThanOrEqual(0);
+        expect(metrics.active.bottom).toBeLessThanOrEqual(metrics.viewport);
+        expect(metrics.board.bottom).toBeLessThanOrEqual(metrics.viewport);
+        expect(metrics.keyboard.bottom).toBeLessThanOrEqual(metrics.viewport);
+        expect(metrics.touchAction).toBe("manipulation");
+        expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(1);
+
+        // A submitted row becomes history. It must not push the next active
+        // row below the board or keyboard in compact play.
+        await page.keyboard.type("jolly");
+        await page.keyboard.press("Enter");
+        await expect(page.getByText("Attempt 2/5")).toBeVisible();
+        metrics = await compactGameMetrics(page);
+        expect(metrics.scrollHeight).toBeLessThanOrEqual(metrics.viewport);
+        expect(metrics.active.bottom).toBeLessThanOrEqual(metrics.viewport);
+        expect(metrics.keyboard.bottom).toBeLessThanOrEqual(metrics.viewport);
+    });
+});
+
+test.describe("short iPhone gameplay", () => {
+    test.use(iPhoneSE);
+
+    test("keeps the mobile controls above the fold", async ({ page }) => {
+        await page.goto("/?fixture=mixed-entry");
+        await page.getByRole("dialog").getByRole("button", { name: "Understood" }).click();
+        const metrics = await compactGameMetrics(page);
+        expect(metrics.scrollHeight).toBeLessThanOrEqual(metrics.viewport);
+        expect(metrics.active.bottom).toBeLessThanOrEqual(metrics.viewport);
+        expect(metrics.board.bottom).toBeLessThanOrEqual(metrics.viewport);
+        expect(metrics.keyboard.bottom).toBeLessThanOrEqual(metrics.viewport);
+    });
+});
 
 test("loads the daily game and closes the first-use instructions", async ({ page }) => {
     await page.goto("/");
@@ -61,7 +128,7 @@ test("checkmating the opponent still allows word entry", async ({ page }) => {
     await page.keyboard.press("Enter");
 
     await expect(page.locator(".mate-banner")).toHaveText("Position ended. Finish the word to submit this guess.");
-    await page.keyboard.press("I");
+    await page.getByRole("button", { name: /^I,/ }).click();
     await expect(page.getByRole("group", { name: "Current guess row" }).getByRole("img", { name: "I; letter not scored" })).toBeVisible();
     await expect(page.locator(".game-error")).toBeHidden();
 });

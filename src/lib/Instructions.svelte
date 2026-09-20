@@ -21,30 +21,32 @@
     });
 </script>
 
-<Modal show={$showInstructions} labelledBy="instructions-title">
-    <button class="close" type="button" aria-label="Close instructions" title="Close instructions" on:click={closeInstructions}>×</button>
-    <p class="eyebrow">How to play</p>
-    <h1 id="instructions-title">Find the word through the board.</h1>
-    <p class="intro">Guess the five-letter answer in five rows. You win when every letter is green and every A–H chess move is correct.</p>
-    <ol>
-        <li>Type letters outside A–H with your keyboard.</li>
-        <li>For A–H, use the board: choose a piece in that lettered column, then its destination.</li>
-        <li>Backspace removes your latest letter or chess move.</li>
-        <li>Each tile shows letter feedback above and chess-move feedback below.</li>
-    </ol>
-    <div class="legend" aria-label="Color key">
-        <span class="swatch green">Green <small>correct here</small></span>
-        <span class="swatch yellow">Yellow <small>elsewhere in the word or chess line</small></span>
-        <span class="swatch gray">Gray <small>not in the word or chess line</small></span>
-    </div>
-    <div class="example" aria-label="Example tile: correct letter with a chess move from elsewhere in the line">
-        <div class="example-tile" aria-hidden="true">
-            <span class="example-letter">F</span>
-            <span class="example-move">F3→F6</span>
+<Modal show={$showInstructions} labelledBy="instructions-title" cardClass="instructions-card">
+    <div class="instructions-content">
+        <button class="close" type="button" aria-label="Close instructions" title="Close instructions" on:click={closeInstructions}>×</button>
+        <p class="eyebrow">How to play</p>
+        <h1 id="instructions-title">Find the word through the board.</h1>
+        <p class="intro">Guess the five-letter answer in five rows. You win when every letter is green and every A–H chess move is correct.</p>
+        <ol>
+            <li>Type letters outside A–H with your keyboard.</li>
+            <li>For A–H, use the board: choose a piece in that lettered column, then its destination.</li>
+            <li>Backspace removes your latest letter or chess move.</li>
+            <li>Each tile shows letter feedback above and chess-move feedback below.</li>
+        </ol>
+        <div class="legend" aria-label="Color key">
+            <span class="swatch green">Green <small>correct here</small></span>
+            <span class="swatch yellow">Yellow <small>elsewhere in the word or chess line</small></span>
+            <span class="swatch gray">Gray <small>not in the word or chess line</small></span>
         </div>
-        <p>Right letter; move belongs elsewhere in the chess line.</p>
+        <div class="example" aria-label="Example tile: correct letter with a chess move from elsewhere in the line">
+            <div class="example-tile" aria-hidden="true">
+                <span class="example-letter">F</span>
+                <span class="example-move">F3→F6</span>
+            </div>
+            <p>Right letter; move belongs elsewhere in the chess line.</p>
+        </div>
     </div>
-    <button on:click={closeInstructions}>Understood</button>
+    <div class="instructions-actions"><button on:click={closeInstructions}>Understood</button></div>
 </Modal>
 
 <style>
@@ -67,6 +69,10 @@
     .close { position: absolute; top: 0.55rem; right: 0.6rem; min-width: 0; width: 2.5rem; height: 2.5rem; padding: 0; border: 0; color: var(--muted); font: 400 1.45rem/1 var(--sans); }
     .close:hover { color: var(--burgundy); background: transparent; border-color: transparent; }
     @media (max-width: 420px) {
+        :global(.modal-card.instructions-card) { display: grid; grid-template-rows: minmax(0, 1fr) auto; overflow: hidden; padding: 0; }
+        .instructions-content { min-height: 0; overflow-y: auto; padding: 1rem 1rem 0.7rem; }
+        .instructions-actions { padding: 0.6rem 1rem 1rem; border-top: 1px solid var(--line); background: var(--panel); }
+        .instructions-actions button { width: 100%; min-height: 2.75rem; }
         h1 { font-size: 1.65rem; margin-bottom: 0.55rem; padding-bottom: 0.5rem; }
         .intro { margin-bottom: 0.7rem; font-size: 0.92rem; }
         ol { margin-bottom: 0.85rem; padding-top: 0.35rem; }

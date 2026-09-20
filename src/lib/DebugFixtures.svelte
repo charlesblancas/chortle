@@ -122,6 +122,9 @@
     .cburnett-wrap { display: grid; width: 100%; height: 100%; place-items: center; }
     .cburnett-wrap img { width: 92%; height: 92%; object-fit: contain; }
     @media (max-width: 420px) {
+        /* Fixture controls are desktop development tools. They should not
+           move the playable phone view below the fold. */
+        .debug-fixtures { display: none; }
         .piece-picker-heading { display: block; }
         .piece-picker-title { justify-content: space-between; }
         .piece-picker-title select { flex: 1; min-width: 0; }

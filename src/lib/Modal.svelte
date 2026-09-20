@@ -3,6 +3,7 @@
 
     export let show;
     export let labelledBy = "";
+    export let cardClass = "";
     let dialog;
     let wasShown = false;
     let priorFocus;
@@ -67,7 +68,7 @@
 
 {#if show}
     <div class="modal-layer">
-        <div class="modal-card" bind:this={dialog} role="dialog" aria-modal="true" aria-labelledby={labelledBy || undefined} aria-label={labelledBy ? undefined : "Chortle dialog"} tabindex="-1">
+        <div class={`modal-card ${cardClass}`} bind:this={dialog} role="dialog" aria-modal="true" aria-labelledby={labelledBy || undefined} aria-label={labelledBy ? undefined : "Chortle dialog"} tabindex="-1">
             <slot />
         </div>
     </div>
