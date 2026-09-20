@@ -113,7 +113,11 @@
 
     function input(key) {
         if ($showInstructions || $gameOver || engineThinking || promotionPending) return;
-        if ((mated || terminal) && key !== "Backspace") {
+        // A terminal board can mean the player checkmated the opponent. The
+        // board must stay locked then, but ordinary word letters still need
+        // to be completable. Only a player who is mated must undo before
+        // entering anything else.
+        if (mated && key !== "Backspace") {
             clearGuidance();
             message = "Position ended. Press Backspace to revise your last move.";
             return;

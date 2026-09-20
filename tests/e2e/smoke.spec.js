@@ -49,6 +49,23 @@ test("a mated fixture can be undone without leaving the board locked", async ({ 
     await expect(page.getByRole("button", { name: /G[1-8]/ }).first()).toBeVisible();
 });
 
+test("checkmating the opponent still allows word entry", async ({ page }) => {
+    await page.goto("/?fixture=player-mate-entry");
+    await page.getByRole("dialog").getByRole("button", { name: "Understood" }).click();
+    const controls = page.locator(".square-controls");
+    const queen = controls.getByRole("button", { name: /F7, white queen; select to choose a move/i });
+    await queen.focus();
+    await page.keyboard.press("Enter");
+    const destination = controls.getByRole("button", { name: /G7, empty square; legal destination/i });
+    await destination.focus();
+    await page.keyboard.press("Enter");
+
+    await expect(page.locator(".mate-banner")).toHaveText("Position ended. Finish the word to submit this guess.");
+    await page.keyboard.press("I");
+    await expect(page.getByRole("group", { name: "Current guess row" }).getByRole("img", { name: "I; letter not scored" })).toBeVisible();
+    await expect(page.locator(".game-error")).toBeHidden();
+});
+
 test("promotion traps keyboard focus and restores it after cancellation", async ({ page }) => {
     await page.goto("/?fixture=promotion-state");
     await page.getByRole("dialog").getByRole("button", { name: "Understood" }).click();

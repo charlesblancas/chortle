@@ -436,7 +436,7 @@
             {#if highlightIndex >= 0}<div class="file-highlight" style={`left: ${highlightIndex * 12.5}%`}></div>{/if}
             <div class="board-visual" aria-hidden="true" on:pointerdown={rememberPointer} on:pointermove={trackPointer} on:click={handleBoardClick}><Chessground bind:this={chessground} coordinates={false} config={{ movable: { events: { after } } }} /></div>
             {#if mated}<div class="mate-banner" role="status">You are mated. Press Backspace to revise your last move.</div>
-            {:else if terminal}<div class="mate-banner" role="status">Position ended. Press Backspace to revise your last move.</div>{/if}
+            {:else if terminal}<div class="mate-banner" role="status">Position ended. Finish the word to submit this guess.</div>{/if}
             {#if promotionPending}
                 <div class="promotion-layer" role="presentation" on:click|stopPropagation>
                     <div class="promotion-dialog" bind:this={promotionDialog} role="dialog" aria-modal="true" aria-labelledby="promotion-title" tabindex="-1">

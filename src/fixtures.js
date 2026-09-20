@@ -41,6 +41,17 @@ export const FIXTURES = [
         instructions: "The line is preloaded through Qh4 mate. Backspace should undo G and reopen the board so you can play another move.",
     },
     {
+        id: "player-mate-entry",
+        label: "Player checkmate word entry",
+        description: "Checkmate with Qg7, then type I. The board is finished, but the word must remain editable.",
+        game: {
+            fen: "7k/p4Q2/5K2/8/8/8/8/8 b - - 0 1",
+            moves: "a7a6 f7g7",
+            word: "fizzy",
+        },
+        instructions: "Move the queen from f7 to g7 for checkmate, then type I to keep completing FIZZY.",
+    },
+    {
         id: "promotion-state",
         label: "Promotion chooser",
         description: "Move the white pawn from the A-file to the last rank and choose a promoted piece.",
