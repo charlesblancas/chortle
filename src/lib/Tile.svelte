@@ -27,8 +27,8 @@
 <style>
     div {
         position: relative;
-        width: var(--guess-tile-size, clamp(2.7rem, 10vw, 3.35rem));
-        height: var(--guess-tile-size, clamp(2.7rem, 10vw, 3.35rem));
+        width: var(--guess-tile-width, var(--guess-tile-size, clamp(2.7rem, 10vw, 3.35rem)));
+        height: var(--guess-tile-height, var(--guess-tile-size, clamp(2.7rem, 10vw, 3.35rem)));
         border: 1px solid var(--ink);
         display: grid;
         grid-template-rows: minmax(0, 1fr) minmax(0, 0.42fr);
@@ -61,7 +61,7 @@
         color: var(--panel);
     }
     @media (max-width: 420px) {
-        div { width: var(--guess-tile-size, clamp(2.15rem, 13vw, 2.75rem)); height: var(--guess-tile-size, clamp(2.15rem, 13vw, 2.75rem)); }
+        div { width: var(--guess-tile-width, var(--guess-tile-size, clamp(2.15rem, 13vw, 2.75rem))); height: var(--guess-tile-height, var(--guess-tile-size, clamp(2.15rem, 13vw, 2.75rem))); }
         .letter { font-size: var(--guess-letter-size, clamp(0.95rem, 4.5vw, 1.25rem)); }
         .move { font-size: var(--guess-move-size, clamp(0.36rem, 1.7vw, 0.48rem)); }
     }

@@ -33,6 +33,12 @@ test.describe("compact iPhone gameplay", () => {
         await understood.click();
 
         let metrics = await compactGameMetrics(page);
+        expect(await page.locator(".guess-row").count()).toBe(5);
+        expect(await page.locator(".guess-row").evaluateAll((rows) => rows.every((row) => getComputedStyle(row).display !== "none"))).toBeTruthy();
+        expect(await page.locator(".guess-row").evaluateAll((rows) => {
+            const widths = rows.map((row) => Math.round(row.getBoundingClientRect().width));
+            return new Set(widths).size === 1;
+        })).toBeTruthy();
         expect(metrics.scrollHeight).toBeLessThanOrEqual(metrics.viewport);
         expect(metrics.active.top).toBeGreaterThanOrEqual(0);
         expect(metrics.active.bottom).toBeLessThanOrEqual(metrics.viewport);
@@ -61,6 +67,12 @@ test.describe("compact iPhone gameplay", () => {
             await expect(page.getByRole("group", { name: "Submitted guess row, scored" })).toHaveCount(
                 ["intro", "irons", "irony"].indexOf(word) + 2,
             );
+            expect(await page.locator(".guess-row").evaluateAll((rows) => {
+                const widths = rows.map((row) => Math.round(row.getBoundingClientRect().width));
+                return rows.length === 5
+                    && rows.every((row) => getComputedStyle(row).display !== "none")
+                    && new Set(widths).size === 1;
+            })).toBeTruthy();
             metrics = await compactGameMetrics(page);
             expect(metrics.scrollHeight).toBeLessThanOrEqual(metrics.viewport);
             expect(metrics.keyboard.bottom).toBeLessThanOrEqual(metrics.viewport);

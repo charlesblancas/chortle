@@ -297,24 +297,28 @@
         .row-ready { margin: 0.45rem auto 0; font-size: 0.64rem; }
         .guesses { gap: 0.18rem; margin-top: 0; }
         :global(.keyboard) { margin-top: 0; }
-        .game-play.history-compact { --mobile-chess-width: 16rem; --mobile-key-height: 2.1rem; }
-        .game-play.history-compact .guess-row.history-row {
-            --guess-tile-size: 1.42rem;
+        /* Keep all five rows in the grid.  Non-active rows are compressed
+            vertically, but retain the active row's column width and gaps so
+            every letter stays aligned with its position above/below it. */
+        .game-play { --mobile-chess-width: 16rem; --mobile-key-height: 2.1rem; }
+        .game-play .guess-row.history-row,
+        .game-play .guess-row.unused-row {
+            --guess-tile-width: clamp(2.15rem, 13vw, 2.75rem);
+            --guess-tile-height: 1.42rem;
             --guess-letter-size: 0.78rem;
             --guess-move-size: 0px;
-            --guess-row-gap: 0.1rem;
-            --guess-tile-gap: 0.1rem;
+            --guess-row-gap: 0.5rem;
+            --guess-tile-gap: 0.3rem;
         }
     }
     @media (max-width: 420px) {
-        /* Keep every submitted guess visible. Only the blank future rows are
-            removed from compact phone layout; they carry no useful feedback. */
-        .guess-row.unused-row { display: none; }
         .guesses { gap: 0.05rem; }
     }
     @media (max-width: 420px) and (max-height: 760px) {
         .guesses { gap: 0.05rem; margin-top: 0; }
         :global(.keyboard) { margin-top: 0.15rem; }
-        .game-play.history-compact { --mobile-chess-width: 14rem; --mobile-key-height: 2rem; }
+        .game-play { --mobile-chess-width: 14rem; --mobile-key-height: 2rem; }
+        .game-play .guess-row.history-row,
+        .game-play .guess-row.unused-row { --guess-tile-height: 1.35rem; }
     }
 </style>
