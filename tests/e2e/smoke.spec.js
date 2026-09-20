@@ -132,6 +132,24 @@ test("short phones keep the keyboard inside the viewport and controls are isolat
     expect(await page.locator(".guess").first().innerText()).toBe("");
 });
 
+test("a full desktop viewport keeps the gameplay surface in view", async ({ page }) => {
+    await page.setViewportSize({ width: 2048, height: 1152 });
+    await page.goto("/?fixture=mixed-entry");
+    await page.getByRole("dialog").getByRole("button", { name: "Understood" }).click();
+
+    // Debug fixtures are development-only chrome and are not part of the
+    // shipped page. Remove the collapsed inspector so this assertion measures
+    // the same gameplay surface users see in production.
+    await page.locator(".debug-fixtures").evaluate((node) => node.remove());
+    const metrics = await page.evaluate(() => ({
+        viewport: innerHeight,
+        scrollHeight: document.documentElement.scrollHeight,
+        keyboardBottom: document.querySelector(".keyboard")?.getBoundingClientRect().bottom,
+    }));
+    expect(metrics.scrollHeight).toBeLessThanOrEqual(metrics.viewport);
+    expect(metrics.keyboardBottom).toBeLessThanOrEqual(metrics.viewport);
+});
+
 test("a mated fixture can be undone without leaving the board locked", async ({ page }) => {
     await page.goto("/?fixture=mate-state");
     await page.getByRole("dialog").getByRole("button", { name: "Understood" }).click();

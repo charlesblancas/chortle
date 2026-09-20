@@ -43,7 +43,7 @@
     .keyboard {
         position: relative;
         padding: 0.85rem 1rem 0.95rem;
-        margin: 2rem 0 0;
+        margin: 1rem 0 0;
         background-color: var(--main);
         border-top: 1px solid var(--line);
         color: var(--text);

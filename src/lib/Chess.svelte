@@ -473,7 +473,7 @@
 <svelte:window on:keydown={handlePromotionKeydown} />
 
 <style>
-    .chess { width: min(100%, var(--mobile-chess-width, 32rem)); margin: clamp(0.65rem, 4vw, 1.75rem) auto 0; }
+    .chess { width: min(100%, var(--mobile-chess-width, 32rem)); margin: clamp(0.65rem, 4vw, 1.25rem) auto 0; }
     .board-grid { position: relative; display: block; padding-bottom: 1.55rem; }
     .board { position: relative; width: 100%; aspect-ratio: 1; overflow: hidden; background: #e9e5db; container-type: inline-size; }
     .file-highlight { position: absolute; z-index: 2; top: 0; bottom: 0; width: 12.5%; pointer-events: none; background: rgba(112, 45, 49, 0.1); box-shadow: inset 0 0 0 2px rgba(112, 45, 49, 0.55); }

@@ -286,7 +286,7 @@
 <style>
     .meta { display: flex; justify-content: center; gap: 0.55rem; padding: 0.5rem 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); color: var(--muted); font: 700 0.68rem/1 var(--mono); font-variant-numeric: tabular-nums; letter-spacing: 0.04em; text-align: center; text-transform: uppercase; }
     .meta span + span::before { content: "·"; margin-right: 0.55rem; color: var(--burgundy); }
-    .rule { max-width: 30rem; margin: 0.9rem auto 0; padding-top: 0.65rem; border-top: 1px solid var(--line); text-align: center; color: var(--muted); font: 700 0.7rem/1 var(--sans); letter-spacing: 0.08em; text-transform: uppercase; }
+    .rule { max-width: 30rem; margin: 0.6rem auto 0; padding-top: 0.45rem; border-top: 1px solid var(--line); text-align: center; color: var(--muted); font: 700 0.7rem/1 var(--sans); letter-spacing: 0.08em; text-transform: uppercase; }
     .row-ready { margin: 0.55rem auto -0.3rem; color: var(--burgundy); text-align: center; font: 700 0.7rem/1.25 var(--sans); letter-spacing: 0.04em; }
     .game-play { --mobile-chess-width: 32rem; }
     .guesses { display: flex; flex-direction: column; align-items: center; gap: .25rem; margin: 0.4rem 0 0; }
