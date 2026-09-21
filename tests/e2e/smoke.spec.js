@@ -94,6 +94,39 @@ test.describe("short iPhone gameplay", () => {
     });
 });
 
+test.describe("mobile chess move hints", () => {
+    test.use(iPhoneSE);
+
+    test("keeps the move hint in a compressed submitted row", async ({ page }) => {
+        await page.goto("/?fixture=mixed-entry");
+        const instructions = page.getByRole("dialog", { name: "Find the word through the board." });
+        await instructions.getByRole("button", { name: "Understood" }).click();
+
+        const controls = page.locator(".square-controls");
+        const playMove = async (from, to) => {
+            const origin = controls.getByRole("button", { name: new RegExp(`${from}, .*select to choose a move`, "i") });
+            await origin.focus();
+            await page.keyboard.press("Enter");
+            const destination = controls.getByRole("button", { name: new RegExp(`${to}, .*legal destination`, "i") });
+            await expect(destination).toBeEnabled();
+            await destination.focus();
+            await page.keyboard.press("Enter");
+        };
+
+        await playMove("G1", "F3");
+        await page.getByRole("button", { name: /^R,/ }).click();
+        await playMove("E1", "E2");
+        await page.getByRole("button", { name: /^T,/ }).click();
+        await page.getByRole("button", { name: /Enter: submit guess/ }).click();
+
+        const submitted = page.getByRole("group", { name: "Submitted guess row, scored" }).first();
+        const hint = submitted.locator(".move").filter({ hasText: "G1→F3" });
+        await expect(hint).toBeVisible();
+        expect(await hint.evaluate((node) => getComputedStyle(node).fontSize)).not.toBe("0px");
+        expect(await page.evaluate(() => document.documentElement.scrollHeight)).toBeLessThanOrEqual(await page.evaluate(() => innerHeight));
+    });
+});
+
 test("loads the daily game and closes the first-use instructions", async ({ page }) => {
     await page.goto("/");
     await expect(page).toHaveTitle(/Chortle Beta/);

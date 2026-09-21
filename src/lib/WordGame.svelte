@@ -306,10 +306,13 @@
             --guess-tile-width: clamp(2.15rem, 13vw, 2.75rem);
             --guess-tile-height: 1.42rem;
             --guess-letter-size: 0.78rem;
-            --guess-move-size: 0px;
             --guess-row-gap: 0.5rem;
             --guess-tile-gap: 0.3rem;
         }
+        /* Keep the chess hint in submitted rows even when the phone layout
+           compresses the tiles. Empty future rows have no hint to show. */
+        .game-play .guess-row.history-row { --guess-move-size: 0.36rem; }
+        .game-play .guess-row.unused-row { --guess-move-size: 0px; }
     }
     @media (max-width: 420px) {
         .guesses { gap: 0.05rem; margin-top: 0.4rem; }
