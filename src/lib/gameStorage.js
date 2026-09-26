@@ -1,5 +1,4 @@
 const STORAGE_VERSION = 1;
-const ROWS = 5;
 const COLUMNS = 5;
 const VALID_STATUS = new Set([-1, 0, 1, 2]);
 
@@ -64,6 +63,10 @@ function chessLetterCount(word) {
 
 export function normalizeSavedGame(value) {
     if (!value || typeof value !== "object") return null;
+    // Existing games retain their original allowance, including completed
+    // fifth-attempt wins. Newly created games contain four rows.
+    const ROWS = value.guesses?.length;
+    if (ROWS !== 4 && ROWS !== 5) return null;
     if (!Array.isArray(value.guesses) || value.guesses.length !== ROWS || !value.guesses.every(isWord)) return null;
     if (!Array.isArray(value.statuses) || value.statuses.length !== ROWS || !value.statuses.every(isStatusRow)) return null;
     if (!Number.isInteger(value.currentRow) || value.currentRow < 0 || value.currentRow >= ROWS) return null;

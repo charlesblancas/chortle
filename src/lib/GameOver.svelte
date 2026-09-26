@@ -12,6 +12,7 @@
     export let solved = false;
     export let day;
     export let attempts;
+    export let maxAttempts = 4;
     export let solutionViewing = false;
     let gameSummary = "";
     let copied = false;
@@ -45,7 +46,7 @@
                 .join("");
         }).filter(Boolean).join("\n");
     }
-    $: shareMessage = `CHORTLE BETA #${String(day).padStart(4, "0")} ${solved ? `${attempts}/5` : "X/5"}\nhttps://chortle.charlesblancas.com\n${gameSummary}`;
+    $: shareMessage = `CHORTLE BETA #${String(day).padStart(4, "0")} ${solved ? attempts : "X"}/${maxAttempts}\nhttps://chortle.charlesblancas.com\n${gameSummary}`;
     $: shareTitle = `CHORTLE BETA #${String(day).padStart(4, "0")}`;
 
     function fallbackCopy(text) {
@@ -127,7 +128,7 @@
 
 <Modal show={gameOverValue && !solutionViewing && !$showInstructions} labelledBy="result-title">
     <p class="eyebrow">Puzzle {String(day).padStart(4, "0")}</p>
-    <h1 id="result-title">{solved ? `Solved in ${attempts}/5` : "Out of attempts"}</h1>
+    <h1 id="result-title">{solved ? `Solved in ${attempts}/${maxAttempts}` : "Out of attempts"}</h1>
     <p class="answer">Today’s answer: <strong>{word}</strong></p>
     <p class="summary" aria-label="Result grid">{gameSummary}</p>
     <button class:copied class="action-button result-action share" type="button" on:click={shareResult} disabled={sharing}>{copied ? "Copied" : sharing ? "Sharing…" : "Share result"}</button>

@@ -26,7 +26,7 @@
         <button class="close" type="button" aria-label="Close instructions" title="Close instructions" on:click={closeInstructions}>×</button>
         <p class="eyebrow">How to play</p>
         <h1 id="instructions-title">Find the word through the board.</h1>
-        <p class="intro">Guess the five-letter answer in five rows. You win when every letter is green and every A–H chess move is correct.</p>
+        <p class="intro">Guess the five-letter answer in four tries. You win when every letter is green and every A–H chess move is correct.</p>
         <ol>
             <li>Type letters outside A–H with your keyboard.</li>
             <li>For A–H, choose a piece in that column, then its destination. Once a move earns green feedback, you can type its letter when following the same chess line.</li>

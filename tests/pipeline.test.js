@@ -760,6 +760,10 @@ test("daily game state is safely validated and round-trips through storage", () 
     const browserStorage = { getItem: (name) => storage.get(name) || null, setItem: (name, value) => storage.set(name, value) };
     assert.equal(writeSavedGame(browserStorage, key, state), true);
     assert.deepEqual(readSavedGame(browserStorage, key), state);
+    const fourRows = { ...state, guesses: state.guesses.slice(0, 4), statuses: state.statuses.slice(0, 4), actionHistory: state.actionHistory.slice(0, 4) };
+    assert.equal(writeSavedGame(browserStorage, key, fourRows), true);
+    assert.deepEqual(readSavedGame(browserStorage, key), fourRows);
+    assert.equal(normalizeSavedGame({ ...fourRows, currentRow: 4 }), null);
     const legacyState = { ...state };
     delete legacyState.actionHistory;
     assert.deepEqual(normalizeSavedGame(legacyState).actionHistory, Array.from({ length: 5 }, () => []));

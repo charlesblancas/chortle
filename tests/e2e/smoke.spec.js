@@ -33,7 +33,7 @@ test.describe("compact iPhone gameplay", () => {
         await understood.click();
 
         let metrics = await compactGameMetrics(page);
-        expect(await page.locator(".guess-row").count()).toBe(5);
+        expect(await page.locator(".guess-row").count()).toBe(4);
         expect(await page.locator(".guess-row").evaluateAll((rows) => rows.every((row) => getComputedStyle(row).display !== "none"))).toBeTruthy();
         expect(await page.locator(".guess-row").evaluateAll((rows) => {
             const widths = rows.map((row) => Math.round(row.getBoundingClientRect().width));
@@ -51,7 +51,7 @@ test.describe("compact iPhone gameplay", () => {
         // only rows compact play is allowed to hide.
         await page.keyboard.type("jolly");
         await page.keyboard.press("Enter");
-        await expect(page.getByText("Attempt 2/5")).toBeVisible();
+        await expect(page.getByText("Attempt 2/4")).toBeVisible();
         await expect(page.getByRole("group", { name: "Submitted guess row, scored" })).toBeVisible();
         metrics = await compactGameMetrics(page);
         expect(metrics.scrollHeight).toBeLessThanOrEqual(metrics.viewport);
@@ -61,15 +61,15 @@ test.describe("compact iPhone gameplay", () => {
         // Keep every submitted row visible as the history grows. These words
         // deliberately avoid A–H so the test exercises the mobile layout
         // without depending on a particular chess position.
-        for (const word of ["intro", "irons", "irony"]) {
+        for (const word of ["intro", "irons"]) {
             await page.keyboard.type(word);
             await page.keyboard.press("Enter");
             await expect(page.getByRole("group", { name: "Submitted guess row, scored" })).toHaveCount(
-                ["intro", "irons", "irony"].indexOf(word) + 2,
+                ["intro", "irons"].indexOf(word) + 2,
             );
             expect(await page.locator(".guess-row").evaluateAll((rows) => {
                 const widths = rows.map((row) => Math.round(row.getBoundingClientRect().width));
-                return rows.length === 5
+                return rows.length === 4
                     && rows.every((row) => getComputedStyle(row).display !== "none")
                     && new Set(widths).size === 1;
             })).toBeTruthy();
@@ -132,7 +132,7 @@ test("confirmed chess moves can be typed, undone, and reused in another word col
     await page.getByRole("button", { name: "Understood" }).click();
     await page.keyboard.type("njoy");
     await page.keyboard.press("Enter");
-    await expect(page.getByText("Attempt 2/5")).toBeVisible();
+    await expect(page.getByText("Attempt 2/4")).toBeVisible();
     const row = page.getByRole("group", { name: "Current guess row" });
     await page.keyboard.type("e");
     await expect(row.locator(".move").first()).toHaveText("E2→E4");
@@ -147,6 +147,17 @@ test("confirmed chess moves can be typed, undone, and reused in another word col
     await expect(row.locator(".letter").nth(2)).toHaveText("");
 });
 
+test("four incorrect guesses end the game", async ({ page }) => {
+    await page.goto('/?fixture=duplicate-score');
+    await page.getByRole('button', { name: 'Understood' }).click();
+    for (const word of ['jolly', 'intro', 'irons', 'irony']) {
+        await page.keyboard.type(word);
+        await page.keyboard.press('Enter');
+    }
+    await expect(page.getByRole('dialog', { name: 'Out of attempts' })).toBeVisible();
+    await expect(page.locator('.guess-row')).toHaveCount(4);
+});
+
 test("loads the daily game and closes the first-use instructions", async ({ page }) => {
     await page.goto("/");
     await expect(page).toHaveTitle(/Chortle Beta/);
@@ -157,7 +168,7 @@ test("loads the daily game and closes the first-use instructions", async ({ page
     await expect(instructions).toBeHidden();
     await expect(page.getByRole("region", { name: /Chess board/i })).toBeVisible();
     await expect(page.getByText(/Puzzle \d{4}/)).toBeVisible();
-    await expect(page.getByRole("group", { name: "Unused guess row" })).toHaveCount(4);
+    await expect(page.getByRole("group", { name: "Unused guess row" })).toHaveCount(3);
 });
 
 test("instructions keep keyboard focus inside the dialog", async ({ page }) => {
@@ -231,7 +242,7 @@ test("short desktop and landscape layouts never scroll", async ({ page }) => {
 test("keyboard chess controls reveal the focused square", async ({ page }) => {
     await page.goto("/?fixture=solution-state");
     await page.getByRole("dialog").getByRole("button", { name: "Understood" }).click();
-    await page.getByRole("dialog", { name: /Solved in 1\/5/ }).getByRole("button", { name: "View solution" }).click();
+    await page.getByRole("dialog", { name: /Solved in 1\/4/ }).getByRole("button", { name: "View solution" }).click();
     const controls = page.locator(".solution-viewer .square-controls");
     await controls.getByRole("button", { name: /C3, white king; select to choose a move/i }).focus();
     const metrics = await controls.evaluate((node) => ({
@@ -353,10 +364,10 @@ test("share result offers manual text when desktop clipboard access fails", asyn
     });
     await page.goto("/?fixture=solution-state");
     await page.getByRole("dialog").getByRole("button", { name: "Understood" }).click();
-    const result = page.getByRole("dialog", { name: /Solved in 1\/5/ });
+    const result = page.getByRole("dialog", { name: /Solved in 1\/4/ });
     await result.getByRole("button", { name: "Share result" }).click();
     await expect(result.getByRole("status")).toHaveText(/Copy failed\. Select the result text below and copy it manually\./);
-    await expect(result.getByRole("textbox", { name: "Result text to copy manually" })).toHaveValue(/CHORTLE BETA #0001 1\/5/);
+    await expect(result.getByRole("textbox", { name: "Result text to copy manually" })).toHaveValue(/CHORTLE BETA #0001 1\/4/);
 });
 
 test("result modal keeps its size when the share status appears", async ({ page }) => {
@@ -368,7 +379,7 @@ test("result modal keeps its size when the share status appears", async ({ page 
     });
     await page.goto("/?fixture=solution-state");
     await page.getByRole("dialog").getByRole("button", { name: "Understood" }).click();
-    const result = page.getByRole("dialog", { name: /Solved in 1\/5/ });
+    const result = page.getByRole("dialog", { name: /Solved in 1\/4/ });
     const before = await result.boundingBox();
     await result.getByRole("button", { name: "Share result" }).click();
     await expect(result.getByRole("status")).toHaveText("Result copied to the clipboard.");
@@ -382,7 +393,7 @@ test("result modal keeps its size when the share status appears", async ({ page 
 test("result actions keep readable text on their scarlet hover state", async ({ page }) => {
     await page.goto("/?fixture=solution-state");
     await page.getByRole("dialog").getByRole("button", { name: "Understood" }).click();
-    const result = page.getByRole("dialog", { name: /Solved in 1\/5/ });
+    const result = page.getByRole("dialog", { name: /Solved in 1\/4/ });
     for (const label of ["Share result", "View solution", "Reset puzzle"]) {
         const button = result.getByRole("button", { name: label });
         await button.hover();
@@ -406,7 +417,7 @@ test("repeated desktop sharing keeps the copied label while clipboard is pending
     });
     await page.goto("/?fixture=solution-state");
     await page.getByRole("dialog").getByRole("button", { name: "Understood" }).click();
-    const result = page.getByRole("dialog", { name: /Solved in 1\/5/ });
+    const result = page.getByRole("dialog", { name: /Solved in 1\/4/ });
     const share = result.getByRole("button", { name: "Share result" });
 
     await share.click();
@@ -437,13 +448,13 @@ test.describe("mobile result copying", () => {
         });
         await page.goto("/?fixture=solution-state");
         await page.getByRole("dialog").getByRole("button", { name: "Understood" }).click();
-        const result = page.getByRole("dialog", { name: /Solved in 1\/5/ });
+        const result = page.getByRole("dialog", { name: /Solved in 1\/4/ });
         await result.getByRole("button", { name: "Share result" }).click();
 
         const manualCopy = result.getByRole("textbox", { name: "Result text to copy manually" });
         await expect(manualCopy).toBeVisible();
         await expect(manualCopy).toBeFocused();
-        await expect(manualCopy).toHaveValue(/CHORTLE BETA #0001 1\/5/);
+        await expect(manualCopy).toHaveValue(/CHORTLE BETA #0001 1\/4/);
     });
 
     test("opens the native share sheet when mobile sharing is available", async ({ page }) => {
@@ -455,13 +466,13 @@ test.describe("mobile result copying", () => {
         });
         await page.goto("/?fixture=solution-state");
         await page.getByRole("dialog").getByRole("button", { name: "Understood" }).click();
-        const result = page.getByRole("dialog", { name: /Solved in 1\/5/ });
+        const result = page.getByRole("dialog", { name: /Solved in 1\/4/ });
         await result.getByRole("button", { name: "Share result" }).click();
 
         await expect(result.getByRole("status")).toHaveText("Result shared.");
         expect(await page.evaluate(() => window.__sharedResult)).toEqual({
             title: "CHORTLE BETA #0001",
-            text: "CHORTLE BETA #0001 1/5\nhttps://chortle.charlesblancas.com\n🟩🟩🟩🟩🟩",
+            text: "CHORTLE BETA #0001 1/4\nhttps://chortle.charlesblancas.com\n🟩🟩🟩🟩🟩",
         });
     });
 
@@ -474,7 +485,7 @@ test.describe("mobile result copying", () => {
         });
         await page.goto("/?fixture=solution-state");
         await page.getByRole("dialog").getByRole("button", { name: "Understood" }).click();
-        const result = page.getByRole("dialog", { name: /Solved in 1\/5/ });
+        const result = page.getByRole("dialog", { name: /Solved in 1\/4/ });
         await result.getByRole("button", { name: "Share result" }).click();
 
         await expect(result.getByRole("status")).toHaveCount(0);
@@ -548,7 +559,7 @@ test("a solved game can replay its solution without changing the result", async 
 
     await page.getByRole("button", { name: "Back to result" }).click();
     await expect(page.getByRole("button", { name: "View solution" })).toBeVisible();
-    await expect(page.getByText(/Solved in 1\/5/)).toBeVisible();
+    await expect(page.getByText(/Solved in 1\/4/)).toBeVisible();
 });
 
 test.describe("compact solution replay", () => {
@@ -557,7 +568,7 @@ test.describe("compact solution replay", () => {
     test("keeps the replay inside the phone viewport", async ({ page }) => {
         await page.goto("/?fixture=solution-state");
         await page.getByRole("dialog", { name: "Find the word through the board." }).getByRole("button", { name: "Understood" }).click();
-        await page.getByRole("dialog", { name: /Solved in 1\/5/ }).getByRole("button", { name: "View solution" }).click();
+        await page.getByRole("dialog", { name: /Solved in 1\/4/ }).getByRole("button", { name: "View solution" }).click();
         await expect(page.getByRole("button", { name: "Back to result" })).toBeVisible();
 
         const metrics = await page.evaluate(() => {
@@ -581,7 +592,7 @@ test.describe("short solution replay", () => {
     test("keeps the replay inside the shortest phone viewport", async ({ page }) => {
         await page.goto("/?fixture=solution-state");
         await page.getByRole("dialog", { name: "Find the word through the board." }).getByRole("button", { name: "Understood" }).click();
-        await page.getByRole("dialog", { name: /Solved in 1\/5/ }).getByRole("button", { name: "View solution" }).click();
+        await page.getByRole("dialog", { name: /Solved in 1\/4/ }).getByRole("button", { name: "View solution" }).click();
         await expect(page.getByRole("button", { name: "Back to result" })).toBeVisible();
 
         const metrics = await page.evaluate(() => ({
@@ -600,7 +611,7 @@ test("solution replay releases and reapplies the modal scroll lock", async ({ pa
     await page.goto("/?fixture=solution-state");
     await page.getByRole("dialog", { name: "Find the word through the board." }).getByRole("button", { name: "Understood" }).click();
 
-    const result = page.getByRole("dialog", { name: /Solved in 1\/5/ });
+    const result = page.getByRole("dialog", { name: /Solved in 1\/4/ });
     await expect(result).toBeVisible();
     expect(await page.evaluate(() => ({ position: document.body.style.position, overflow: document.body.style.overflow }))).toEqual({ position: "fixed", overflow: "hidden" });
 

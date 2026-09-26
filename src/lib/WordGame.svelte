@@ -18,7 +18,7 @@
     export let dayOverride = NaN;
     export let pieceSet = "cburnett";
     const storage = safeStorage();
-    const ROWS = 5;
+    let ROWS = 4;
     let guesses = Array(ROWS).fill("");
     if (fixture?.initialGuess) guesses[0] = fixture.initialGuess.toUpperCase();
     let statuses = Array.from({ length: ROWS }, () => Array(5).fill(-1));
@@ -82,6 +82,7 @@
         if (!fixture) {
             const saved = readSavedGame(storage, storageKey);
             if (saved) {
+                ROWS = saved.guesses.length;
                 guesses = saved.guesses;
                 statuses = saved.statuses;
                 currentRow = saved.currentRow;
@@ -264,7 +265,7 @@
 
 <Instructions />
 <div class="meta"><span>Puzzle {String(selectedDay).padStart(4, "0")}</span><span>{dateLabel}</span><span>Attempt {currentRow + 1}/{ROWS}</span></div>
-<GameOver word={answer} {statuses} {guesses} {actionHistory} {solutionMoves} {solved} day={selectedDay} attempts={currentRow + 1} {solutionViewing} on:viewSolution={openSolution} on:reset={resetDebugGame} />
+<GameOver word={answer} {statuses} {guesses} {actionHistory} {solutionMoves} {solved} day={selectedDay} attempts={currentRow + 1} maxAttempts={ROWS} {solutionViewing} on:viewSolution={openSolution} on:reset={resetDebugGame} />
 <div class="game-play" class:history-compact={currentRow > 0}>
     <div class="guesses">
         {#each guesses as guess, index}
@@ -301,7 +302,7 @@
         .row-ready { margin: 0.45rem auto 0; font-size: 0.64rem; }
         .guesses { gap: 0.18rem; margin-top: 0.4rem; }
         :global(.keyboard) { margin-top: 0; }
-        /* Keep all five rows in the grid.  Non-active rows are compressed
+        /* Keep all rows in the grid.  Non-active rows are compressed
             vertically, but retain the active row's column width and gaps so
             every letter stays aligned with its position above/below it. */
         .game-play { --mobile-chess-width: 16rem; --mobile-key-height: 2.1rem; }
