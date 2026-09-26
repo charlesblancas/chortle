@@ -19,7 +19,7 @@ export default defineConfig({
         { name: "chromium", use: { ...devices["Desktop Chrome"] } },
         {
             name: "webkit-mobile",
-            grep: /compact iPhone gameplay|short iPhone gameplay|instructions keep keyboard focus inside the dialog|short phones keep the keyboard inside the viewport and controls are isolated|keyboard chess controls retain the selected square|confirmed chess moves|production preview serves the shipped gameplay and worker assets/,
+            grep: /compact iPhone gameplay|short iPhone gameplay|instructions keep keyboard focus inside the dialog|short phones keep the keyboard inside the viewport and controls are isolated|keyboard chess controls retain the selected square|confirmed chess moves|touch promotion cancellation|promotion traps keyboard focus|production preview serves the shipped gameplay and worker assets/,
             use: { ...devices["iPhone 13"], browserName: "webkit" },
         },
     ],

@@ -267,14 +267,19 @@
         dispatch("promotion", { active: false });
         commitMove(pending.from, pending.to, role, true);
     }
-    function cancelPromotion() {
+    function cancelPromotion(event) {
         if (!promotionPending) return;
         const origin = promotionPending.from;
         promotionPending = null;
         dispatch("promotion", { active: false });
         chessground.set({ fen: chess.fen(), orientation, coordinates: false });
         setup();
-        tick().then(() => chessRoot?.querySelector(`[data-square="${origin}"]`)?.focus());
+        // Pointer activation has a nonzero click count. Returning focus to
+        // the square controls then would expose their overlay over the board.
+        // Escape and keyboard-activated clicks still restore keyboard focus.
+        if (!event || event.detail === 0) {
+            tick().then(() => chessRoot?.querySelector(`[data-square="${origin}"]`)?.focus());
+        }
     }
     function focusPromotionButton(node, enabled) {
         if (!enabled) return {};
