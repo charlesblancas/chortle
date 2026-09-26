@@ -6,6 +6,7 @@ import { performance } from "node:perf_hooks";
 import { Chess } from "chess.js";
 import { FIXTURES } from "../src/fixtures.js";
 import { games } from "../src/games/final_games.js";
+import { confirmedMoveShortcut } from "../src/gameRules.js";
 import { chessMoveStatus, combineFeedbackStatuses, dailyPuzzleIndex, fileProjection, isCanonicalPlayerMove, isInteractiveKeyTarget, isMated, isPlayerMatedAfterReply, isSolvedGuess, scoreShareRow, scoreWord, shouldHandleWordGameKey, validatePuzzleRecord } from "../src/gameRules.js";
 import { chooseReply, isUciMove } from "../src/lib/tinyEngine.js";
 import { applyEngineReply, fastChessReply } from "../src/lib/fastChessEngine.js";
@@ -16,6 +17,26 @@ import { createReplaySession } from "../src/lib/replaySession.js";
 import { cacheSunfishAnalysis, getCachedSunfishAnalysis, nextSunfishAnalysisDepth, seedSunfishAnalysis, sunfishAnalyze } from "../src/lib/sunfishEngine.js";
 
 const mixed = FIXTURES.find((fixture) => fixture.id === "mixed-entry");
+
+test("known move shortcuts follow revealed chess order, not word columns", () => {
+    const first = { uci: "a2a4", reply: "h7h5", moveCorrect: true };
+    const second = { uci: "a4a5", reply: "h5h4", moveCorrect: true };
+    const lookup = (key, actions = [], scores = [0, 2, 0, 1, 0], history = [first, second]) =>
+        confirmedMoveShortcut(key, actions, ["XAXAX"], [scores], [history]);
+    assert.equal(lookup("A"), "a2a4");
+    assert.equal(lookup("A", [first]), "a4a5");
+    assert.equal(lookup("E"), null);
+    assert.equal(lookup("A", [first, second]), null);
+    assert.equal(lookup("A", [{ ...first, moveCorrect: false }]), null);
+    assert.equal(lookup("A", [{ ...first, reply: "h7h6" }]), null);
+    assert.equal(lookup("A", [{ ...first, pending: true }]), null);
+    assert.equal(lookup("A", [], [-1, -1, -1, -1, -1]), null);
+    assert.equal(lookup("A", [], [0, 0, 0, 0, 0]), null);
+    assert.equal(lookup("A", [], undefined, [{ ...first, moveCorrect: false }]), null);
+    assert.equal(lookup("A", [], undefined, [{ ...first, uci: "a7a8n" }]), "a7a8n");
+    const restored = JSON.parse(JSON.stringify({ guesses: ["XAXAX"], statuses: [[0, 2, 0, 1, 0]], actionHistory: [[first, second]] }));
+    assert.equal(confirmedMoveShortcut("A", [first], restored.guesses, restored.statuses, restored.actionHistory), "a4a5");
+});
 
 function loadSunfish() {
     const source = fs.readFileSync(new URL("../src/lib/sunfish.worker.js", import.meta.url), "utf8");

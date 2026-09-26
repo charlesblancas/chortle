@@ -243,6 +243,15 @@
             setup();
         }
     }
+    export function playKnownMove(uci) {
+        if (!chessground || readOnly || disabled || terminal || engineThinking || promotionPending || !isUciMove(uci)) return false;
+        const legal = chess.moves({ verbose: true }).some((move) =>
+            `${move.from}${move.to}${move.promotion || ""}` === uci);
+        if (!legal) return false;
+        commitMove(uci.slice(0, 2), uci.slice(2, 4), uci[4] || "");
+        return true;
+    }
+
     async function after(from, to) {
         if (readOnly || disabled || engineThinking || promotionPending) return;
         if (beginPromotion(from, to)) return;

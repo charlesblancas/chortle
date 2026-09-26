@@ -9,7 +9,7 @@
     import { games } from "../games/final_games";
     import { possibilities } from "../games/possibilities";
     import { gameOver, showInstructions } from "../stores";
-    import { dailyPuzzleIndex, isSolvedGuess, playerMoves, scoreWord, shouldHandleWordGameKey } from "../gameRules";
+    import { confirmedMoveShortcut, dailyPuzzleIndex, isSolvedGuess, playerMoves, scoreWord, shouldHandleWordGameKey } from "../gameRules";
     import { browserStorage, gameStorageKey, readSavedGame, removeSavedGame, safeStorage, writeSavedGame } from "./gameStorage";
     import { onMount, tick } from "svelte";
 
@@ -31,6 +31,7 @@
         actionHistory[0] = actions.map((action) => ({ ...action }));
     }
     let previewLetter = "";
+    let gameBoard;
     let keyStatuses = {};
     let message = "";
     let highlightFile = "";
@@ -148,6 +149,9 @@
         if (/^[A-Za-z]$/.test(key)) {
             key = key.toUpperCase();
             if (FILE_LETTERS.includes(key)) {
+                if (guesses[currentRow].length >= 5) return;
+                const knownMove = confirmedMoveShortcut(key, actions, guesses, statuses, actionHistory);
+                if (knownMove && gameBoard?.playKnownMove(knownMove)) return;
                 message = `${key} comes from a move starting on the ${key}-file.`;
                 highlightFile = key;
                 messageTimer = setTimeout(clearGuidance, 1500);
@@ -274,7 +278,7 @@
         <SolutionViewer fen={game.fen} movesString={game.moves} {pieceSet} {replayStateKey} interactive={solutionViewing} on:close={closeSolution} />
     {:else}
         <div class="live-play">
-            <Chess fen={game.fen} movesString={game.moves} {actions} {mated} {terminal} {pieceSet} disabled={mated || terminal || engineThinking || promotionPending || guesses[currentRow].length >= 5} {highlightFile} on:move={chessLetter} on:resolve={resolveChessMove} on:thinking={(event) => engineThinking = event.detail.active} on:promotion={handlePromotion} on:preview={(event) => previewLetter = event.detail.letter} />
+            <Chess bind:this={gameBoard} fen={game.fen} movesString={game.moves} {actions} {mated} {terminal} {pieceSet} disabled={mated || terminal || engineThinking || promotionPending || guesses[currentRow].length >= 5} {highlightFile} on:move={chessLetter} on:resolve={resolveChessMove} on:thinking={(event) => engineThinking = event.detail.active} on:promotion={handlePromotion} on:preview={(event) => previewLetter = event.detail.letter} />
             {#if guesses[currentRow].length >= 5 && !$gameOver}<p class="row-ready">Row complete · press Enter to submit or Backspace to revise.</p>{/if}
             <p class="rule">A–H are played from the board.</p>
             <Keyboard {keyStatuses} on:key={(event) => input(event.detail.key)} />

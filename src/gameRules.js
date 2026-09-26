@@ -161,6 +161,26 @@ export function fileProjection(movesString) {
     return playerMoves(movesString).map((uci) => uci[0].toUpperCase()).join("");
 }
 
+// Learn only from revealed feedback, matching the preceding moves and replies.
+// Repeated file letters identify separate steps, independent of word columns.
+export function confirmedMoveShortcut(letter, actions, guesses, statuses, actionHistory) {
+    if (actions.some((action) => !action.moveCorrect || action.pending)) return null;
+    for (let row = 0; row < guesses.length; row++) {
+        const history = actionHistory[row] || [];
+        let step = 0;
+        for (let column = 0; column < guesses[row].length; column++) {
+            if (!FILE_LETTERS.includes(guesses[row][column])) continue;
+            const index = step++;
+            const candidate = history[index];
+            if (index !== actions.length || !candidate?.moveCorrect || candidate.pending) continue;
+            if (guesses[row][column] !== letter || ![1, 2].includes(statuses[row]?.[column])) continue;
+            if (actions.every((action, i) => history[i]?.moveCorrect
+                && action.uci === history[i].uci && action.reply === history[i].reply)) return candidate.uci;
+        }
+    }
+    return null;
+}
+
 export function validatePuzzleRecord(record, { requireChessLetter = true } = {}) {
     const errors = [];
     if (!record || typeof record !== "object") return ["record is not an object"];

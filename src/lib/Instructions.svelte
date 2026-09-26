@@ -29,7 +29,7 @@
         <p class="intro">Guess the five-letter answer in five rows. You win when every letter is green and every A–H chess move is correct.</p>
         <ol>
             <li>Type letters outside A–H with your keyboard.</li>
-            <li>For A–H, use the board: choose a piece in that lettered column, then its destination.</li>
+            <li>For A–H, choose a piece in that column, then its destination. Once a move earns green feedback, you can type its letter when following the same chess line.</li>
             <li>Backspace removes your latest letter or chess move.</li>
             <li>Each tile shows letter feedback above and chess-move feedback below.</li>
         </ol>

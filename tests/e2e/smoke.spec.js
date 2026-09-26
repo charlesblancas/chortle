@@ -127,6 +127,26 @@ test.describe("mobile chess move hints", () => {
     });
 });
 
+test("confirmed chess moves can be typed, undone, and reused in another word column", async ({ page }) => {
+    await page.goto("/?fixture=mixed-entry");
+    await page.getByRole("button", { name: "Understood" }).click();
+    await page.keyboard.type("njoy");
+    await page.keyboard.press("Enter");
+    await expect(page.getByText("Attempt 2/5")).toBeVisible();
+    const row = page.getByRole("group", { name: "Current guess row" });
+    await page.keyboard.type("e");
+    await expect(row.locator(".move").first()).toHaveText("E2→E4");
+    await page.keyboard.press("Backspace");
+    await expect(row.locator(".move").first()).toHaveText("");
+    await page.keyboard.type("x");
+    await page.getByRole("button", { name: /^E: choose/ }).click();
+    await expect(row.locator(".move").nth(1)).toHaveText("E2→E4");
+    await page.keyboard.type("g");
+    await expect(row.locator(".letter").nth(2)).toHaveText("");
+    await page.keyboard.type("e");
+    await expect(row.locator(".letter").nth(2)).toHaveText("");
+});
+
 test("loads the daily game and closes the first-use instructions", async ({ page }) => {
     await page.goto("/");
     await expect(page).toHaveTitle(/Chortle Beta/);
