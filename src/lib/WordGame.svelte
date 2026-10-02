@@ -267,7 +267,7 @@
 </script>
 
 <Instructions />
-<div class="meta"><span>Puzzle {String(selectedDay).padStart(4, "0")}</span><span>{dateLabel}</span><span>Attempt {currentRow + 1}/{ROWS}</span><span title="Moves played off the puzzle line. Correct replays and moves after completing the line are free.">Extra moves: {extraMoves}</span></div>
+<div class="meta"><span>Puzzle {String(selectedDay).padStart(4, "0")}</span><span>{dateLabel}</span><span>Attempt {currentRow + 1}/{ROWS}</span></div>
 <GameOver word={answer} {statuses} {guesses} {actionHistory} {solutionMoves} {solved} {extraMoves} day={selectedDay} attempts={currentRow + 1} maxAttempts={ROWS} {solutionViewing} on:viewSolution={openSolution} on:reset={resetDebugGame} />
 <div class="game-play" class:history-compact={currentRow > 0} class:four-guesses={ROWS === 4} class:solution-board={$gameOver && solved}>
     <div class="guesses">
@@ -300,7 +300,6 @@
     .game-play { --mobile-chess-width: 32rem; }
     .guesses { display: flex; flex-direction: column; align-items: center; gap: .25rem; margin: 0.4rem 0 0; }
     @media (max-width: 510px) {
-        .meta span:nth-child(2) { display: none; }
         .meta { gap: 0.2rem; font-size: 0.56rem; }
         .meta span + span::before { margin-right: 0.2rem; }
         .rule { display: none; }

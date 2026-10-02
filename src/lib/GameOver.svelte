@@ -47,8 +47,7 @@
                 .join("");
         }).filter(Boolean).join("\n");
     }
-    $: extraMovesMessage = solved && extraMoves === 0 ? "Perfect game! No extra moves." : `Extra moves: ${extraMoves}`;
-    $: shareMessage = `CHORTLE BETA #${String(day).padStart(4, "0")} ${solved ? attempts : "X"}/${maxAttempts}\nhttps://chortle.charlesblancas.com\n${gameSummary}\n${extraMovesMessage}`;
+    $: shareMessage = `CHORTLE BETA #${String(day).padStart(4, "0")} ${solved ? attempts : "X"}/${maxAttempts}\nhttps://chortle.charlesblancas.com\n${gameSummary}`;
     $: shareTitle = `CHORTLE BETA #${String(day).padStart(4, "0")}`;
 
     function fallbackCopy(text) {
@@ -133,7 +132,6 @@
     <h1 id="result-title">{solved ? `Solved in ${attempts}/${maxAttempts}` : "Out of attempts"}</h1>
     <p class="answer">Today’s answer: <strong>{word}</strong></p>
     <p class="summary" aria-label="Result grid">{gameSummary}</p>
-    <p>{extraMovesMessage}</p>
     <button class:copied class="action-button result-action share" type="button" on:click={shareResult} disabled={sharing}>{copied ? "Copied" : sharing ? "Sharing…" : "Share result"}</button>
     {#if solved}<button class="action-button result-action solution" type="button" on:click={() => dispatch("viewSolution")}>View solution</button>{/if}
     {#if import.meta.env.DEV}<button class="action-button result-action reset" type="button" on:click={() => dispatch("reset")}>Reset puzzle</button>{/if}
