@@ -20,6 +20,45 @@ async function compactGameMetrics(page) {
     });
 }
 
+test('responsive phone guess rows use squares when tall and stay compact when short', async ({ page }) => {
+    for (const size of [
+        { width: 390, height: 664, full: true },
+        { width: 390, height: 744, full: true },
+        { width: 430, height: 820, full: true },
+        { width: 375, height: 568, full: false },
+        { width: 320, height: 568, full: false },
+        { width: 430, height: 740, full: false },
+    ]) {
+        await page.setViewportSize({ width: size.width, height: size.height });
+        await page.goto('/?fixture=duplicate-score');
+        const instructions = page.getByRole('dialog');
+        if (await instructions.isVisible()) await instructions.getByRole('button', { name: 'Understood' }).click();
+        await page.locator('.debug-fixtures').evaluate((node) => node.remove());
+        const checkLayout = async () => {
+            const tiles = await page.locator('.guess-row .tiles > div:first-child').evaluateAll((nodes) => nodes.map((node) => {
+                const box = node.getBoundingClientRect();
+                return { width: box.width, height: box.height };
+            }));
+            expect(tiles).toHaveLength(4);
+            if (size.full) {
+                for (const tile of tiles) expect(Math.abs(tile.height - tile.width)).toBeLessThanOrEqual(1);
+            } else {
+                expect(tiles.at(-1).height).toBeLessThan(tiles.at(-1).width);
+            }
+            const metrics = await compactGameMetrics(page);
+            expect(metrics.scrollHeight).toBeLessThanOrEqual(metrics.viewport);
+            expect(metrics.keyboard.bottom).toBeLessThanOrEqual(metrics.viewport);
+            expect(metrics.board.bottom).toBeLessThanOrEqual(metrics.viewport);
+        };
+        await checkLayout();
+        await page.keyboard.type('intro');
+        await checkLayout();
+        await page.keyboard.press('Enter');
+        await expect(page.getByText('Attempt 2/4')).toBeVisible();
+        await checkLayout();
+    }
+});
+
 test.describe("compact iPhone gameplay", () => {
     test.use(iPhone13);
 

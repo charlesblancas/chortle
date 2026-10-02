@@ -266,7 +266,7 @@
 <Instructions />
 <div class="meta"><span>Puzzle {String(selectedDay).padStart(4, "0")}</span><span>{dateLabel}</span><span>Attempt {currentRow + 1}/{ROWS}</span></div>
 <GameOver word={answer} {statuses} {guesses} {actionHistory} {solutionMoves} {solved} day={selectedDay} attempts={currentRow + 1} maxAttempts={ROWS} {solutionViewing} on:viewSolution={openSolution} on:reset={resetDebugGame} />
-<div class="game-play" class:history-compact={currentRow > 0}>
+<div class="game-play" class:history-compact={currentRow > 0} class:four-guesses={ROWS === 4} class:solution-board={$gameOver && solved}>
     <div class="guesses">
         {#each guesses as guess, index}
             <div class="guess-row" class:active-row={index === currentRow} class:history-row={index < currentRow} class:unused-row={index > currentRow}>
@@ -328,6 +328,30 @@
         .game-play { --mobile-chess-width: 14rem; --mobile-key-height: 2rem; }
         .game-play .guess-row.history-row,
         .game-play .guess-row.unused-row { --guess-tile-height: 1.35rem; }
+    }
+    @media (max-width: 420px) and (max-height: 600px) {
+        /* Leave room for the two-line row-complete hint on short phones. */
+        .game-play { --mobile-chess-width: 13.25rem; }
+    }
+    /* Four square rows fit on taller phones. Use available height rather
+       than width alone, so browser chrome and short phones retain the compact
+       layout. Older saved five-guess games still use their existing layout. */
+    @media (max-width: 420px) and (min-height: 660px) {
+        .game-play.four-guesses:not(.solution-board) .guess-row.history-row,
+        .game-play.four-guesses:not(.solution-board) .guess-row.unused-row {
+            --guess-tile-height: clamp(2.15rem, 13vw, 2.75rem);
+            --guess-letter-size: clamp(0.95rem, 4.5vw, 1.25rem);
+            --guess-move-size: clamp(0.36rem, 1.7vw, 0.48rem);
+        }
+    }
+    @media (min-width: 421px) and (max-width: 510px) and (min-height: 800px) {
+        .game-play.four-guesses:not(.solution-board) .guess-row.history-row,
+        .game-play.four-guesses:not(.solution-board) .guess-row.unused-row {
+            --guess-tile-width: clamp(2.7rem, 10vw, 3.35rem);
+            --guess-tile-height: clamp(2.7rem, 10vw, 3.35rem);
+            --guess-letter-size: clamp(1.15rem, 4vw, 1.45rem);
+            --guess-move-size: clamp(0.42rem, 1.5vw, 0.52rem);
+        }
     }
     /* A 100%-zoom desktop browser is often only 1080px tall once its
        chrome is accounted for. Preserve full-size tiles and board at that
