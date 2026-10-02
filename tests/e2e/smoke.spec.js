@@ -2,6 +2,7 @@ import { test, expect, devices } from "@playwright/test";
 
 const { defaultBrowserType: _iPhone13Browser, ...iPhone13 } = devices["iPhone 13"];
 const { defaultBrowserType: _iPhoneSEBrowser, ...iPhoneSE } = devices["iPhone SE"];
+const { defaultBrowserType: _iPhone15Browser, ...iPhone15 } = devices["iPhone 15"];
 
 async function compactGameMetrics(page) {
     return page.evaluate(() => {
@@ -23,6 +24,9 @@ async function compactGameMetrics(page) {
 test('responsive phone guess rows use squares when tall and stay compact when short', async ({ page }) => {
     for (const size of [
         { width: 390, height: 664, full: true },
+        { width: 393, height: 655, full: true },
+        { width: 393, height: 659, full: true },
+        { width: 393, height: 650, full: false },
         { width: 390, height: 744, full: true },
         { width: 430, height: 820, full: true },
         { width: 375, height: 568, full: false },
@@ -57,6 +61,60 @@ test('responsive phone guess rows use squares when tall and stay compact when sh
         await expect(page.getByText('Attempt 2/4')).toBeVisible();
         await checkLayout();
     }
+});
+
+test.describe('iPhone 15 gameplay', () => {
+    test.use(iPhone15);
+
+    test('keeps four full-size guess rows and the keyboard visible through errors and submissions', async ({ page }) => {
+        await page.goto('/?fixture=duplicate-score');
+        await page.getByRole('button', { name: 'Understood' }).tap();
+        await expect(page.getByText('Daily edition', { exact: true })).toHaveCount(0);
+        const checkFit = async () => {
+            const tiles = await page.locator('.guess-row .tiles > div:first-child').evaluateAll((nodes) => nodes.map((node) => {
+                const rect = node.getBoundingClientRect();
+                return { width: rect.width, height: rect.height };
+            }));
+            expect(tiles).toHaveLength(4);
+            for (const tile of tiles) {
+                expect(tile.height).toBeGreaterThanOrEqual(43);
+                expect(Math.abs(tile.height - tile.width)).toBeLessThanOrEqual(1);
+            }
+            const metrics = await compactGameMetrics(page);
+            expect(metrics.scrollHeight).toBeLessThanOrEqual(metrics.viewport);
+            expect(metrics.keyboard.bottom).toBeLessThanOrEqual(metrics.viewport);
+            expect(metrics.board.bottom).toBeLessThanOrEqual(metrics.viewport);
+            expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(393);
+        };
+        await checkFit();
+        await page.keyboard.type('a');
+        await expect(page.getByRole('alert')).toBeVisible();
+        await checkFit();
+        await page.keyboard.type('zzzzz');
+        await checkFit();
+        await page.keyboard.press('Enter');
+        await expect(page.getByRole('alert')).toContainText('not in word list');
+        await expect(page.locator('.row-ready')).toHaveCount(0);
+        await checkFit();
+        for (let index = 0; index < 5; index++) await page.keyboard.press('Backspace');
+        await page.keyboard.press('Enter');
+        await expect(page.getByRole('alert')).toHaveText('Not enough letters');
+        await checkFit();
+        for (const [index, word] of ['intro', 'irons', 'irony'].entries()) {
+            await page.keyboard.type(word);
+            await checkFit();
+            await page.keyboard.press('Enter');
+            await expect(page.getByText(`Attempt ${index + 2}/4`)).toBeVisible();
+            await checkFit();
+        }
+        await page.keyboard.type('jolly');
+        await page.keyboard.press('Enter');
+        const result = page.getByRole('dialog', { name: 'Out of attempts' });
+        await expect(result).toBeVisible();
+        const bounds = await result.boundingBox();
+        expect(bounds.y).toBeGreaterThanOrEqual(0);
+        expect(bounds.y + bounds.height).toBeLessThanOrEqual(659);
+    });
 });
 
 test.describe("compact iPhone gameplay", () => {

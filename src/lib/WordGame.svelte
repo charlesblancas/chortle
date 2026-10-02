@@ -280,7 +280,7 @@
     {:else}
         <div class="live-play">
             <Chess bind:this={gameBoard} fen={game.fen} movesString={game.moves} {actions} {mated} {terminal} {pieceSet} disabled={mated || terminal || engineThinking || promotionPending || guesses[currentRow].length >= 5} {highlightFile} on:move={chessLetter} on:resolve={resolveChessMove} on:thinking={(event) => engineThinking = event.detail.active} on:promotion={handlePromotion} on:preview={(event) => previewLetter = event.detail.letter} />
-            {#if guesses[currentRow].length >= 5 && !$gameOver}<p class="row-ready">Row complete · press Enter to submit or Backspace to revise.</p>{/if}
+            {#if guesses[currentRow].length >= 5 && !$gameOver && !message}<p class="row-ready">Row complete · press Enter to submit or Backspace to revise.</p>{/if}
             <p class="rule">A–H are played from the board.</p>
             <Keyboard {keyStatuses} on:key={(event) => input(event.detail.key)} />
         </div>
@@ -336,7 +336,7 @@
     /* Four square rows fit on taller phones. Use available height rather
        than width alone, so browser chrome and short phones retain the compact
        layout. Older saved five-guess games still use their existing layout. */
-    @media (max-width: 420px) and (min-height: 660px) {
+    @media (max-width: 420px) and (min-height: 655px) {
         .game-play.four-guesses:not(.solution-board) .guess-row.history-row,
         .game-play.four-guesses:not(.solution-board) .guess-row.unused-row {
             --guess-tile-height: clamp(2.15rem, 13vw, 2.75rem);
