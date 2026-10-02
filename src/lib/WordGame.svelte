@@ -146,7 +146,7 @@
             return;
         }
         clearGuidance();
-        previewLetter = "";
+        gameBoard?.clearSelection();
         if (/^[A-Za-z]$/.test(key)) {
             key = key.toUpperCase();
             if (FILE_LETTERS.includes(key)) {

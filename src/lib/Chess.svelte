@@ -34,7 +34,6 @@
     const line = movesString.split(" ");
     let chessground;
     let last = "";
-    let selectedLetter = "";
     let selectedSquare = "";
     let engineThinking = false;
     let promotionPending = null;
@@ -42,8 +41,6 @@
     let promotionDialog;
     let chessRoot;
     let boardVersion = 0;
-    let pointerStart = null;
-    let pointerMoved = false;
     const PROMOTION_CHOICES = [
         { role: "q", label: "Queen", shortLabel: "Q", white: "♕", black: "♛" },
         { role: "r", label: "Rook", shortLabel: "R", white: "♖", black: "♜" },
@@ -60,6 +57,7 @@
     $: files = orientation === "white" ? "ABCDEFGH".split("") : "HGFEDCBA".split("");
     $: ranks = orientation === "white" ? [8, 7, 6, 5, 4, 3, 2, 1] : [1, 2, 3, 4, 5, 6, 7, 8];
     $: boardSquares = ranks.flatMap((rank) => files.map((file) => `${file.toLowerCase()}${rank}`));
+    $: selectedLetter = selectedSquare ? selectedSquare[0].toUpperCase() : "";
     $: selectedDestinations = selectedSquare
         ? chess.moves({ square: selectedSquare, verbose: true }).map((move) => move.to)
         : [];
@@ -93,6 +91,7 @@
         const canMove = !readOnly && !disabled && !terminal && !engineThinking && !promotionPending && (playable || playerTurn) && !chess.isGameOver();
         const config = {
             movable: { enabled: canMove, color: playable ? turnColor : playerColor, dests: destinations(), free: false },
+            premovable: { enabled: false },
             turnColor,
             viewOnly: readOnly || disabled || terminal || engineThinking || (!playable && !playerTurn) || Boolean(promotionPending),
         };
@@ -104,6 +103,7 @@
         // board as usual.
         if (!promotionPending) config.fen = chess.fen();
         chessground.set(config);
+        if (!canMove) clearSelection();
     }
     function rebuild() {
         if (!chessground) return;
@@ -114,9 +114,7 @@
         }
         chess.load(currentFen);
         boardVersion += 1;
-        selectedLetter = "";
-        selectedSquare = "";
-        dispatch("preview", { letter: "" });
+        clearSelection();
         chessground.set({
             fen: currentFen,
             orientation,
@@ -136,9 +134,7 @@
         const legal = chess.moves({ square: from, verbose: true }).some((move) => move.to === to);
         if (!piece || piece.type !== "p" || !promotionRank || !legal) return false;
         promotionPending = { from, to, color: piece.color };
-        selectedLetter = "";
-        selectedSquare = "";
-        dispatch("preview", { letter: "" });
+        clearSelection();
         dispatch("promotion", { active: true });
         setup();
         return true;
@@ -153,17 +149,13 @@
         try {
             move = chess.move({ from, to, promotion });
         } catch {
-            // A click handler and Chessground's own pointer handler can both
-            // observe the same destination. The second observation is stale
-            // after the first move has been applied, so ignore it safely.
+            // Ignore a move callback that is stale after a position change.
             return;
         }
         if (!move) return;
         const uci = `${move.from}${move.to}${move.promotion || ""}`;
         if (replay && playable) {
-            selectedLetter = "";
-            selectedSquare = "";
-            dispatch("preview", { letter: "" });
+            clearSelection();
             dispatch("replayMove", { uci, san: move.san || move.lan || uci, fen: chess.fen() });
             setup();
             return;
@@ -176,9 +168,7 @@
         const moveCorrect = isCanonicalPlayerMove(movesString, actions, uci);
         let reply = line[2 + actionIndex * 2];
 
-        selectedLetter = "";
-        selectedSquare = "";
-        dispatch("preview", { letter: "" });
+        clearSelection();
         // A few puzzle records intentionally end on the player's move. If
         // that move leaves a live position, we still need a reply so the board
         // returns to the player's turn instead of looking frozen. A genuinely
@@ -315,27 +305,18 @@
             first.focus();
         }
     }
-    function showFile(event) {
-        if (!event.clientX || !event.clientY) return;
-        const rect = event.currentTarget.getBoundingClientRect();
-        const column = Math.min(7, Math.floor((event.clientX - rect.left) / rect.width * 8));
-        const row = Math.min(7, Math.floor((event.clientY - rect.top) / rect.height * 8));
-        const file = files[column].toLowerCase();
-        const rank = String(ranks[row]);
-        const square = `${file}${rank}`;
-        if (selectedSquare === square) {
-            selectedLetter = "";
-            selectedSquare = "";
-            dispatch("preview", { letter: "" });
-            return;
-        }
-        const isLegalOrigin = chess.moves({ square, verbose: true }).length > 0;
-        selectedLetter = isLegalOrigin ? file.toUpperCase() : "";
-        selectedSquare = isLegalOrigin ? square : "";
-        dispatch("preview", { letter: selectedLetter });
+    // Chessground owns pointer selection. Mirror its current state rather
+    // than toggling a second selection from a synthetic click (which touch
+    // interactions can suppress entirely).
+    function syncSelection() {
+        if (!chessground) return;
+        const square = chessground.getState().selected;
+        const canSelect = !readOnly && !disabled && !terminal && !engineThinking && !promotionPending;
+        selectedSquare = canSelect ? square || "" : "";
+        dispatch("preview", { letter: selectedSquare ? selectedSquare[0].toUpperCase() : "" });
     }
-    function clearSquareSelection() {
-        selectedLetter = "";
+    export function clearSelection() {
+        chessground?.cancelMove();
         selectedSquare = "";
         dispatch("preview", { letter: "" });
     }
@@ -362,64 +343,39 @@
     function chooseSquare(square) {
         if (squareDisabled(square, squareStateSignature)) return;
         if (selectedSquare === square) {
-            clearSquareSelection();
+            clearSelection();
             return;
         }
-        if (selectedSquare) {
-            if (selectedDestinations.includes(square)) after(selectedSquare, square);
-            return;
-        }
-        selectedSquare = square;
-        selectedLetter = square[0].toUpperCase();
-        dispatch("preview", { letter: selectedLetter });
+        chessground.selectSquare(square);
+        syncSelection();
     }
     function fileHint(node) {
-        const clear = () => {
-            selectedLetter = "";
-            selectedSquare = "";
-            dispatch("preview", { letter: "" });
-        };
-        const onBoardClick = () => {
-            requestAnimationFrame(() => {
-                if (!selectedSquare && !node.querySelector("square.selected")) clear();
-            });
-        };
+        let active = true;
+        // A second tap and a cancelled drag can deselect at touchend/mouseup
+        // without emitting a select event. Read after all native handlers.
+        const onPointerEnd = () => queueMicrotask(() => {
+            if (active) syncSelection();
+        });
         const clearPreview = (event) => {
             if (event.type === "keydown" ? event.key === "Escape" : !node.contains(event.target)) {
-                clear();
+                clearSelection();
             }
         };
-        node.addEventListener("click", onBoardClick);
+        document.addEventListener("touchend", onPointerEnd);
+        document.addEventListener("mouseup", onPointerEnd);
+        document.addEventListener("pointerdown", clearPreview);
         document.addEventListener("click", clearPreview);
         document.addEventListener("keydown", clearPreview);
         return {
             destroy: () => {
-                node.removeEventListener("click", onBoardClick);
+                active = false;
+                document.removeEventListener("touchend", onPointerEnd);
+                document.removeEventListener("mouseup", onPointerEnd);
+                document.removeEventListener("pointerdown", clearPreview);
                 document.removeEventListener("click", clearPreview);
                 document.removeEventListener("keydown", clearPreview);
             },
         };
-    }
-    function rememberPointer(event) {
-        pointerStart = { x: event.clientX, y: event.clientY };
-        pointerMoved = false;
-    }
-    function trackPointer(event) {
-        if (!pointerStart) return;
-        pointerMoved ||= Math.hypot(event.clientX - pointerStart.x, event.clientY - pointerStart.y) > 6;
-    }
-    function handleBoardClick(event) {
-        if (pointerMoved) {
-            pointerStart = null;
-            pointerMoved = false;
-            return;
-        }
-        pointerStart = null;
-        const rect = event.currentTarget.getBoundingClientRect();
-        const column = Math.floor(((event.clientX - rect.left) / rect.width) * 8);
-        const row = Math.floor(((event.clientY - rect.top) / rect.height) * 8);
-        if (column < 0 || column > 7 || row < 0 || row > 7) return;
-        chooseSquare(`${files[column].toLowerCase()}${ranks[row]}`);
     }
     // Replaying the whole position is only necessary when the move history
     // changes.  `disabled` changes as a guess fills up (especially between
@@ -448,7 +404,7 @@
         <div class="rank-labels" aria-hidden="true">{#each ranks as rank}<span>{rank}</span>{/each}</div>
         <div class="board" class:piece-set-glyph={pieceSet === "glyph"} class:piece-set-image={IMAGE_PIECE_SETS.has(pieceSet)} class:piece-set-cburnett={pieceSet === "cburnett"} style={pieceAssetStyle}>
             {#if highlightIndex >= 0}<div class="file-highlight" style={`left: ${highlightIndex * 12.5}%`}></div>{/if}
-            <div class="board-visual" aria-hidden="true" on:pointerdown={rememberPointer} on:pointermove={trackPointer} on:click={handleBoardClick}><Chessground bind:this={chessground} coordinates={false} config={{ movable: { events: { after } } }} /></div>
+            <div class="board-visual" aria-hidden="true"><Chessground bind:this={chessground} coordinates={false} config={{ movable: { events: { after } }, events: { select: syncSelection } }} /></div>
             {#if mated}<div class="mate-banner" role="status">You are mated. Press Backspace to revise your last move.</div>
             {:else if terminal}<div class="mate-banner" role="status">Position ended. Finish the word to submit this guess.</div>{/if}
             {#if promotionPending}
