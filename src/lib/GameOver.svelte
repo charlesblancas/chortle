@@ -47,7 +47,8 @@
                 .join("");
         }).filter(Boolean).join("\n");
     }
-    $: shareMessage = `CHORTLE BETA #${String(day).padStart(4, "0")} ${solved ? attempts : "X"}/${maxAttempts}\nhttps://chortle.charlesblancas.com\n${gameSummary}`;
+    $: extraMovesMessage = solved && extraMoves === 0 ? "Perfect game! No extra moves." : `Extra moves: ${extraMoves}`;
+    $: shareMessage = `CHORTLE BETA #${String(day).padStart(4, "0")} ${solved ? attempts : "X"}/${maxAttempts}\nhttps://chortle.charlesblancas.com\n${gameSummary}\n${extraMovesMessage}`;
     $: shareTitle = `CHORTLE BETA #${String(day).padStart(4, "0")}`;
 
     function fallbackCopy(text) {
