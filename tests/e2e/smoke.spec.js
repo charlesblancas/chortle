@@ -94,7 +94,7 @@ test.describe('iPhone 15 gameplay', () => {
         await checkFit();
         await page.keyboard.press('Enter');
         await expect(page.getByRole('alert')).toContainText('not in word list');
-        await expect(page.locator('.row-ready')).toHaveCount(0);
+        await expect(page.locator('.row-ready')).toBeHidden();
         await checkFit();
         for (let index = 0; index < 5; index++) await page.keyboard.press('Backspace');
         await page.keyboard.press('Enter');
@@ -396,6 +396,28 @@ test("a 1920px by 1080px desktop viewport never scrolls", async ({ page }) => {
     }));
     expect(metrics.scrollHeight).toBeLessThanOrEqual(metrics.viewport);
     expect(metrics.keyboardBottom).toBeLessThanOrEqual(metrics.viewport);
+});
+
+test('move hint popup keeps the board and keyboard in place', async ({ page }) => {
+    for (const size of [{ width: 1920, height: 1080 }, { width: 900, height: 1152 }, { width: 393, height: 659 }]) {
+        await page.setViewportSize(size);
+        await page.goto('/?day=1');
+        const instructions = page.getByRole('dialog');
+        if (await instructions.isVisible()) await instructions.getByRole('button', { name: 'Understood' }).click();
+        const positions = () => page.evaluate(() => {
+            const board = document.querySelector('.board').getBoundingClientRect();
+            const keyboard = document.querySelector('.keyboard').getBoundingClientRect();
+            return { boardTop: board.top, keyboardTop: keyboard.top, scrollHeight: document.documentElement.scrollHeight };
+        });
+        const before = await positions();
+        await page.keyboard.type('e');
+        const popup = page.getByRole('alert');
+        await expect(popup).toHaveText('E comes from a move starting on the E-file.');
+        expect(await popup.evaluate((node) => getComputedStyle(node).position)).toBe('fixed');
+        expect(await positions()).toEqual(before);
+        await expect(popup).toBeHidden();
+        expect(await positions()).toEqual(before);
+    }
 });
 
 test("a mated fixture can be undone without leaving the board locked", async ({ page }) => {

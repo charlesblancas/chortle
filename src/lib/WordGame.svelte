@@ -280,7 +280,7 @@
     {:else}
         <div class="live-play">
             <Chess bind:this={gameBoard} fen={game.fen} movesString={game.moves} {actions} {mated} {terminal} {pieceSet} disabled={mated || terminal || engineThinking || promotionPending || guesses[currentRow].length >= 5} {highlightFile} on:move={chessLetter} on:resolve={resolveChessMove} on:thinking={(event) => engineThinking = event.detail.active} on:promotion={handlePromotion} on:preview={(event) => previewLetter = event.detail.letter} />
-            {#if guesses[currentRow].length >= 5 && !$gameOver && !message}<p class="row-ready">Row complete · press Enter to submit or Backspace to revise.</p>{/if}
+            {#if guesses[currentRow].length >= 5 && !$gameOver}<p class="row-ready" class:message-active={Boolean(message)} aria-hidden={Boolean(message)}>Row complete · press Enter to submit or Backspace to revise.</p>{/if}
             <p class="rule">A–H are played from the board.</p>
             <Keyboard {keyStatuses} on:key={(event) => input(event.detail.key)} />
         </div>
@@ -293,6 +293,7 @@
     .meta span + span::before { content: "·"; margin-right: 0.55rem; color: var(--burgundy); }
     .rule { max-width: 30rem; margin: 0.6rem auto 0; padding-top: 0.45rem; border-top: 1px solid var(--line); text-align: center; color: var(--muted); font: 700 0.7rem/1 var(--sans); letter-spacing: 0.08em; text-transform: uppercase; }
     .row-ready { margin: 0.55rem auto -0.3rem; color: var(--burgundy); text-align: center; font: 700 0.7rem/1.25 var(--sans); letter-spacing: 0.04em; }
+    .row-ready.message-active { visibility: hidden; }
     .game-play { --mobile-chess-width: 32rem; }
     .guesses { display: flex; flex-direction: column; align-items: center; gap: .25rem; margin: 0.4rem 0 0; }
     @media (max-width: 510px) {
