@@ -1,10 +1,12 @@
 <script>
     import { createEventDispatcher } from "svelte";
     import { FIXTURES } from "../fixtures";
+    import { gameplayNodeBudget, setGameplayNodeBudget } from "./stockfishEngine.js";
 
     export let selected = "";
     export let pieceSet = "cburnett";
     const dispatch = createEventDispatcher();
+    let engineNodes = gameplayNodeBudget();
     const PIECES = [
         { label: "King", role: "king", code: "K", white: "♔", black: "♚" },
         { label: "Queen", role: "queen", code: "Q", white: "♕", black: "♛" },
@@ -53,6 +55,12 @@
             </select>
         </div>
         {#if active}<p>{active.description}</p><small>{active.instructions}</small>{/if}
+        <div class="engine-picker">
+            <label for="engine-nodes">Stockfish reply nodes</label>
+            <input id="engine-nodes" type="number" min="100" max="1000000" step="100" bind:value={engineNodes} />
+            <button class="action-button" type="button" on:click={() => engineNodes = setGameplayNodeBudget(engineNodes)}>Apply</button>
+            <small>Default: 20,000. Applies to the next engine reply; recorded puzzle replies stay fixed. Saved locally and in the URL.</small>
+        </div>
     <div class="piece-picker" aria-label="Chess piece style">
         <div class="piece-picker-heading">
             <div class="piece-picker-title">
@@ -97,6 +105,8 @@
     .debug-content { padding: 0.5rem 0.65rem; }
     .fixture-picker { display: flex; align-items: center; flex-wrap: wrap; gap: 0.45rem; }
     .fixture-picker label { margin: 0; }
+    .engine-picker { margin-top: 0.65rem; }
+    .engine-picker input { width: 7rem; padding: 0.2rem 0.35rem; border: 1px solid var(--line); background: var(--panel); color: var(--text); font: inherit; }
     label { margin-right: 0.45rem; color: var(--burgundy); font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; }
     select { border: 1px solid var(--line); border-radius: 0; background: var(--panel); color: var(--text); font: inherit; padding: 0.2rem 0.35rem; }
     p { margin: 0.45rem 0 0; }

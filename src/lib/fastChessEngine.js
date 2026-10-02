@@ -5,10 +5,8 @@ export function isUciMove(move) {
     return /^[a-h][1-8][a-h][1-8][qrbn]?$/.test(move || "");
 }
 
-// The game only needs a quick, legal reply after an off-line move. Level 1
-// keeps that reply effectively instantaneous while still using the engine's
-// move ordering and tactical checks. randomness: 0 is intentional: a given
-// position must always produce the same reply.
+// Small deterministic tactical recovery search. Normally run in its own
+// worker; also available when worker startup itself fails.
 export function fastChessReply(fen) {
     try {
         const chess = new Chess(fen);

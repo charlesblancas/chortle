@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 
-test("extra moves count accepted off-line moves and survive undo", async ({ page }) => {
+test("extra moves stay hidden during play and undo", async ({ page }) => {
     await page.goto("/?fixture=mixed-entry");
     await page.getByRole("dialog").getByRole("button", { name: "Understood" }).click();
     await expect(page.locator(".meta")).not.toContainText("Extra moves");

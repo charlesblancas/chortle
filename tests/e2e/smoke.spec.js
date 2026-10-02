@@ -213,6 +213,7 @@ test.describe("mobile chess move hints", () => {
             await expect(destination).toBeEnabled();
             await destination.focus();
             await page.keyboard.press("Enter");
+            await expect(page.locator('.live-play .square-control:enabled').first()).toBeVisible();
         };
 
         await playMove("G1", "F3");
@@ -238,6 +239,7 @@ test("confirmed chess moves can be typed, undone, and reused in another word col
     const row = page.getByRole("group", { name: "Current guess row" });
     await page.keyboard.type("e");
     await expect(row.locator(".move").first()).toHaveText("E2→E4");
+    await expect(page.locator('.live-play .square-control[data-square="e1"]')).toBeEnabled();
     await page.keyboard.press("Backspace");
     await expect(row.locator(".move").first()).toHaveText("");
     await page.keyboard.type("x");
@@ -262,7 +264,7 @@ test("four incorrect guesses end the game", async ({ page }) => {
 
 test("loads the daily game and closes the first-use instructions", async ({ page }) => {
     await page.goto("/");
-    await expect(page).toHaveTitle(/Chortle Beta/);
+    await expect(page).toHaveTitle(/Play Chortle/);
     await expect(page.getByRole("heading", { name: /Chortle/ })).toBeVisible();
     const instructions = page.getByRole("dialog", { name: "Find the word through the board." });
     await expect(instructions).toBeVisible();
@@ -596,7 +598,7 @@ test.describe("mobile result copying", () => {
         await expect(result.getByRole("status")).toHaveText("Result shared.");
         expect(await page.evaluate(() => window.__sharedResult)).toEqual({
             title: "CHORTLE BETA #0001",
-            text: "CHORTLE BETA #0001 1/4\nhttps://chortle.charlesblancas.com\n🟩🟩🟩🟩🟩",
+            text: "CHORTLE BETA #0001 1/4\nhttps://chortle.charlesblancas.com\n🟩🟩🟩🟩🟩\nPerfect game! No extra moves.",
         });
     });
 

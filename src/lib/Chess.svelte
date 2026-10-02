@@ -3,8 +3,9 @@
     import { Chess, SQUARES } from "chess.js";
     import { Chessground } from "svelte-chessground";
     import { isCanonicalPlayerMove, isPlayerMatedAfterReply } from "../gameRules";
-    import { firstLegalReply, isUciMove } from "./fastChessEngine";
-    import { sunfishReply, warmSunfish } from "./sunfishEngine";
+    import { isUciMove } from "./fastChessEngine";
+    import { warmStockfish } from "./stockfishEngine";
+    import { gameplayReply } from "./gameplayReply";
 
     export let fen;
     export let movesString;
@@ -75,11 +76,11 @@
         });
         return result;
     }
-    function apply(uci) {
+    function apply(uci, animate = true) {
         if (!isUciMove(uci)) return false;
         try {
             const move = chess.move({ from: uci.slice(0, 2), to: uci.slice(2, 4), promotion: uci[4] });
-            if (move) chessground.move(move.from, move.to);
+            if (move && animate) chessground.move(move.from, move.to);
             return Boolean(move);
         } catch {
             return false;
@@ -115,17 +116,23 @@
         chess.load(currentFen);
         boardVersion += 1;
         clearSelection();
+        // Reconstruct the rules board silently. Sending the starting position
+        // and every historical move to Chessground restarts animations while
+        // an asynchronous opponent reply is pending.
+        if (!replay) {
+            apply(line[0], false);
+            actions.forEach((action) => { apply(action.uci, false); apply(action.reply, false); });
+        }
+        const latestMove = chess.history({ verbose: true }).at(-1);
         chessground.set({
-            fen: currentFen,
+            fen: chess.fen(),
             orientation,
             coordinates: false,
-            ...(replay ? { lastMove: replayMove ? [replayMove.slice(0, 2), replayMove.slice(2, 4)] : undefined } : {}),
+            lastMove: replay
+                ? (replayMove ? [replayMove.slice(0, 2), replayMove.slice(2, 4)] : undefined)
+                : (latestMove ? [latestMove.from, latestMove.to] : undefined),
             ...(replay ? { drawable: { enabled: false, visible: true, autoShapes: replayShapes } } : {}),
         });
-        if (!replay) {
-            apply(line[0]);
-            actions.forEach((action) => { apply(action.uci); apply(action.reply); });
-        }
         setup();
     }
     function beginPromotion(from, to) {
@@ -200,28 +207,18 @@
         setup();
         dispatch("thinking", { active: true });
         try {
-            if (!moveCorrect) {
-                try {
-                    // Sunfish gives stronger tactical replies while running
-                    // off the UI thread. Its deterministic search is seeded
-                    // only by the current position, so the same mistake
-                    // always receives the same response.
-                    reply = await sunfishReply(chess.fen(), 2);
-                } catch {
-                    reply = "";
-                }
-            }
+            reply = await gameplayReply(chess.fen(), moveCorrect ? reply : "");
             // Never unlock the board until the reply has actually been
             // applied. A malformed or stale engine response must not leave
             // the side-to-move on the opponent, which looks like the player
             // can move black pieces next.
             let replyApplied = reply ? apply(reply) : false;
             if (!replyApplied) {
-                // Sunfish can time out, a saved line can contain a stale reply,
+                // The engine can time out, a saved line can contain a stale reply,
                 // or a correct line can simply end before the opponent reply.
                 // Always recover with a legal deterministic move when one
                 // exists, so the board returns to the player's turn.
-                const fallbackReply = firstLegalReply(chess.fen());
+                const fallbackReply = await gameplayReply(chess.fen());
                 replyApplied = Boolean(fallbackReply && apply(fallbackReply));
                 reply = replyApplied ? fallbackReply : "";
             }
@@ -393,7 +390,7 @@
     onMount(() => {
         rebuild();
         last = signature;
-        if (!readOnly) warmSunfish();
+        if (!readOnly) warmStockfish();
     });
 </script>
 
