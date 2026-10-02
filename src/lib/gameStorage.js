@@ -117,6 +117,9 @@ export function normalizeSavedGame(value) {
         solved,
         completed,
     };
+    if (value.extraMoves !== undefined) {
+        normalized.extraMoves = Number.isSafeInteger(value.extraMoves) && value.extraMoves >= 0 ? value.extraMoves : 0;
+    }
     // Keep the pre-terminal-state storage shape backwards compatible. Current
     // saves include the flag, while old saves round-trip without gaining a
     // new property that callers did not write.

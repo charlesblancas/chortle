@@ -9,7 +9,7 @@
     import { games } from "../games/final_games";
     import { possibilities } from "../games/possibilities";
     import { gameOver, showInstructions } from "../stores";
-    import { confirmedMoveShortcut, dailyPuzzleIndex, isSolvedGuess, playerMoves, scoreWord, shouldHandleWordGameKey } from "../gameRules";
+    import { confirmedMoveShortcut, dailyPuzzleIndex, isExtraPlayerMove, isSolvedGuess, playerMoves, scoreWord, shouldHandleWordGameKey } from "../gameRules";
     import { browserStorage, gameStorageKey, readSavedGame, removeSavedGame, safeStorage, writeSavedGame } from "./gameStorage";
     import { onMount, tick } from "svelte";
 
@@ -23,6 +23,7 @@
     if (fixture?.initialGuess) guesses[0] = fixture.initialGuess.toUpperCase();
     let statuses = Array.from({ length: ROWS }, () => Array(5).fill(-1));
     let currentRow = 0;
+    let extraMoves = 0;
     let actions = fixture?.initialActions ? [...fixture.initialActions] : [];
     let actionHistory = Array.from({ length: ROWS }, () => []);
     let solved = Boolean(fixture?.autoSubmit);
@@ -74,7 +75,7 @@
 
     function saveGame(completed = $gameOver) {
         if (!hydrated || fixture) return;
-        writeSavedGame(storage, storageKey, { guesses, statuses, currentRow, actions, actionHistory, keyStatuses, mated, terminal, solved, completed });
+        writeSavedGame(storage, storageKey, { guesses, statuses, currentRow, actions, actionHistory, keyStatuses, mated, terminal, solved, completed, extraMoves });
     }
 
     onMount(() => {
@@ -86,6 +87,7 @@
                 guesses = saved.guesses;
                 statuses = saved.statuses;
                 currentRow = saved.currentRow;
+                extraMoves = saved.extraMoves ?? 0;
                 actions = saved.actions;
                 actionHistory = saved.actionHistory;
                 keyStatuses = saved.keyStatuses;
@@ -176,6 +178,7 @@
     function chessLetter(event) {
         if (guesses[currentRow].length >= 5) return;
         previewLetter = "";
+        if (isExtraPlayerMove(game.moves, actions, event.detail.uci)) extraMoves += 1;
         actions = [...actions, event.detail];
         mated = event.detail.mated || false;
         terminal = event.detail.terminal || false;
@@ -264,8 +267,8 @@
 </script>
 
 <Instructions />
-<div class="meta"><span>Puzzle {String(selectedDay).padStart(4, "0")}</span><span>{dateLabel}</span><span>Attempt {currentRow + 1}/{ROWS}</span></div>
-<GameOver word={answer} {statuses} {guesses} {actionHistory} {solutionMoves} {solved} day={selectedDay} attempts={currentRow + 1} maxAttempts={ROWS} {solutionViewing} on:viewSolution={openSolution} on:reset={resetDebugGame} />
+<div class="meta"><span>Puzzle {String(selectedDay).padStart(4, "0")}</span><span>{dateLabel}</span><span>Attempt {currentRow + 1}/{ROWS}</span><span title="Moves played off the puzzle line. Correct replays and moves after completing the line are free.">Extra moves: {extraMoves}</span></div>
+<GameOver word={answer} {statuses} {guesses} {actionHistory} {solutionMoves} {solved} {extraMoves} day={selectedDay} attempts={currentRow + 1} maxAttempts={ROWS} {solutionViewing} on:viewSolution={openSolution} on:reset={resetDebugGame} />
 <div class="game-play" class:history-compact={currentRow > 0} class:four-guesses={ROWS === 4} class:solution-board={$gameOver && solved}>
     <div class="guesses">
         {#each guesses as guess, index}
@@ -297,6 +300,7 @@
     .game-play { --mobile-chess-width: 32rem; }
     .guesses { display: flex; flex-direction: column; align-items: center; gap: .25rem; margin: 0.4rem 0 0; }
     @media (max-width: 510px) {
+        .meta span:nth-child(2) { display: none; }
         .meta { gap: 0.2rem; font-size: 0.56rem; }
         .meta span + span::before { margin-right: 0.2rem; }
         .rule { display: none; }

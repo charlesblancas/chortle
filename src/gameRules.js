@@ -157,6 +157,17 @@ export function playerMoves(movesString) {
     return movesString.trim().split(/\s+/).filter(Boolean).filter((_, index) => index % 2 === 1);
 }
 
+// A completed correct line permits free exploration beyond the puzzle.
+// Inspect the history before appending the accepted player move.
+export function isExtraPlayerMove(movesString, actions, uci) {
+    const required = playerMoves(movesString);
+    if (!required.length) return false;
+    const complete = actions.length >= required.length
+        && actions.slice(0, required.length).every((action, index) =>
+            action.moveCorrect && action.uci === required[index]);
+    return !complete && !isCanonicalPlayerMove(movesString, actions, uci);
+}
+
 export function fileProjection(movesString) {
     return playerMoves(movesString).map((uci) => uci[0].toUpperCase()).join("");
 }
