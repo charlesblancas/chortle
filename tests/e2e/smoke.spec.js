@@ -69,7 +69,12 @@ test.describe('iPhone 15 gameplay', () => {
     test('keeps four full-size guess rows and the keyboard visible through errors and submissions', async ({ page }) => {
         await page.goto('/?fixture=duplicate-score');
         await page.getByRole('button', { name: 'Understood' }).tap();
-        await expect(page.getByText('Daily edition', { exact: true })).toHaveCount(0);
+        await expect(page.getByText('Daily edition', { exact: true })).toBeVisible();
+        const help = await page.locator('.help').boundingBox();
+        const helpMark = await page.locator('.help-mark').boundingBox();
+        expect(help.width).toBeGreaterThanOrEqual(44);
+        expect(help.height).toBeGreaterThanOrEqual(44);
+        expect(helpMark.width).toBeLessThan(help.width);
         const checkFit = async () => {
             const tiles = await page.locator('.guess-row .tiles > div:first-child').evaluateAll((nodes) => nodes.map((node) => {
                 const rect = node.getBoundingClientRect();
