@@ -133,6 +133,7 @@
     <h1 id="result-title">{solved ? `Solved in ${attempts}/${maxAttempts}` : "Out of attempts"}</h1>
     <p class="answer">Today’s answer: <strong>{word}</strong></p>
     <p class="summary" aria-label="Result grid">{gameSummary}</p>
+    <p>{extraMovesMessage}</p>
     <button class:copied class="action-button result-action share" type="button" on:click={shareResult} disabled={sharing}>{copied ? "Copied" : sharing ? "Sharing…" : "Share result"}</button>
     {#if solved}<button class="action-button result-action solution" type="button" on:click={() => dispatch("viewSolution")}>View solution</button>{/if}
     {#if import.meta.env.DEV}<button class="action-button result-action reset" type="button" on:click={() => dispatch("reset")}>Reset puzzle</button>{/if}
