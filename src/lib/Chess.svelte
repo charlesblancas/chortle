@@ -1,6 +1,6 @@
 <script>
     import { createEventDispatcher, onMount, tick } from "svelte";
-    import { Chess, SQUARES } from "chess.js";
+    import { Chess } from "chess.js";
     import { Chessground } from "svelte-chessground";
     import { isCanonicalPlayerMove, isPlayerMatedAfterReply } from "../gameRules";
     import { isUciMove } from "./fastChessEngine";
@@ -59,22 +59,26 @@
     $: ranks = orientation === "white" ? [8, 7, 6, 5, 4, 3, 2, 1] : [1, 2, 3, 4, 5, 6, 7, 8];
     $: boardSquares = ranks.flatMap((rank) => files.map((file) => `${file.toLowerCase()}${rank}`));
     $: selectedLetter = selectedSquare ? selectedSquare[0].toUpperCase() : "";
-    $: selectedDestinations = selectedSquare
-        ? chess.moves({ square: selectedSquare, verbose: true }).map((move) => move.to)
-        : [];
+    $: selectedDestinations = selectedSquare ? destinations().get(selectedSquare) || [] : [];
     $: highlightIndex = files.indexOf(highlightFile);
     $: pieceAssetStyle = IMAGE_PIECE_SETS.has(pieceSet)
         ? PIECE_CODES.flatMap((code) => [`--piece-w${code}: url('/pieces/${pieceSet}/w${code}.svg')`, `--piece-b${code}: url('/pieces/${pieceSet}/b${code}.svg')`]).join(";")
         : "";
     $: replayShapes = replayArrows.length ? replayArrows : replayArrow ? [replayArrow] : [];
 
+    let legalPosition = "";
+    let legalDestinations = new Map();
     function destinations() {
+        const position = chess.fen();
+        if (position === legalPosition) return legalDestinations;
         const result = new Map();
-        SQUARES.forEach((square) => {
-            const legal = chess.moves({ square, verbose: true });
-            if (legal.length) result.set(square, legal.map((move) => move.to));
-        });
-        return result;
+        for (const move of chess.moves({ verbose: true })) {
+            if (!result.has(move.from)) result.set(move.from, []);
+            if (!result.get(move.from).includes(move.to)) result.get(move.from).push(move.to);
+        }
+        legalPosition = position;
+        legalDestinations = result;
+        return legalDestinations;
     }
     function apply(uci, animate = true) {
         if (!isUciMove(uci)) return false;
@@ -329,13 +333,13 @@
         const piece = squarePieceLabel(square);
         if (selectedSquare === square) return `${coordinate}, ${piece}; selected starting square, activate again to clear`;
         if (selectedSquare) return `${coordinate}, ${piece}; ${selectedDestinations.includes(square) ? "legal destination" : "not a legal destination"}`;
-        return `${coordinate}, ${piece}; ${chess.moves({ square, verbose: true }).length ? "select to choose a move" : "no legal move"}`;
+        return `${coordinate}, ${piece}; ${destinations().has(square) ? "select to choose a move" : "no legal move"}`;
     }
     function squareDisabled(square, stateSignature) {
         if (!stateSignature) return true;
         if (readOnly || disabled || engineThinking || promotionPending) return true;
         if (selectedSquare) return selectedSquare !== square && !selectedDestinations.includes(square);
-        return chess.moves({ square, verbose: true }).length === 0;
+        return !destinations().has(square);
     }
     function chooseSquare(square) {
         if (squareDisabled(square, squareStateSignature)) return;

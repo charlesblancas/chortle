@@ -21,7 +21,6 @@
     let copyStatus = "";
     let useNativeShare = false;
     let sharing = false;
-    let shareFailed = false;
     let shareStatus = "";
     let manualCopy;
     const dispatch = createEventDispatcher();
@@ -71,7 +70,6 @@
     async function copyResult() {
         copyFailed = false;
         copyStatus = "";
-        shareFailed = false;
         shareStatus = "";
         try {
             if (!navigator.clipboard?.writeText) throw new Error("Clipboard API unavailable");
@@ -94,16 +92,15 @@
 
     async function shareResult() {
         if (sharing) return;
-        if (!useNativeShare) {
-            await copyResult();
-            return;
-        }
         sharing = true;
-        shareFailed = false;
         shareStatus = "";
         copyFailed = false;
         copyStatus = "";
         try {
+            if (!useNativeShare) {
+                await copyResult();
+                return;
+            }
             await navigator.share({
                 title: shareTitle,
                 // Keep the complete result in one text field. iOS may append a
@@ -134,7 +131,7 @@
     <button class="action-button result-action solution" type="button" on:click={() => dispatch("viewSolution")}>View solution</button>
     {#if import.meta.env.DEV}<button class="action-button result-action reset" type="button" on:click={() => dispatch("reset")}>Reset puzzle</button>{/if}
     <p
-        class:copy-failed={copyFailed || shareFailed}
+        class:copy-failed={copyFailed}
         class="copy-status"
         role="status"
         aria-hidden={!(copyStatus || shareStatus)}

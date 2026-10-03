@@ -1,9 +1,8 @@
 import { Chess } from "chess.js";
 import { chooseReply } from "./tinyEngine.js";
 
-export function isUciMove(move) {
-    return /^[a-h][1-8][a-h][1-8][qrbn]?$/.test(move || "");
-}
+import { isUciMove } from "./chessNotation.js";
+export { isUciMove } from "./chessNotation.js";
 
 // Small deterministic tactical recovery search. Normally run in its own
 // worker; also available when worker startup itself fails.

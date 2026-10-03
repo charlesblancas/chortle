@@ -1,5 +1,5 @@
 /**
- *  sunfish.js
+ *  sunfish.js (historical benchmark fixture; not used by the application)
  *  JavaScript port of Sunfish Python Chess Engine
  *  @VERSION: sunfish 2023
  *  https://github.com/foo123/sunfish.js

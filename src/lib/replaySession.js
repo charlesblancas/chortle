@@ -1,13 +1,10 @@
 import { Chess } from "chess.js";
 import { createAnalysisCoordinator } from "./analysisCoordinator.js";
 import { buildSolutionPositions, materialEvaluation } from "./solutionReplay.js";
+import { isUciMove as validMove } from "./chessNotation.js";
 
 function clamp(value, minimum, maximum) {
     return Math.max(minimum, Math.min(maximum, value));
-}
-
-function validMove(value) {
-    return /^[a-h][1-8][a-h][1-8][qrbn]?$/.test(value || "");
 }
 
 function validFen(value) {
@@ -157,18 +154,18 @@ export function createReplaySession({
         return { orig: uci.slice(0, 2), dest: uci.slice(2, 4), brush };
     }
 
-    function setArrows(canonicalMove = "", sunfishMove = "") {
+    function setArrows(canonicalMove = "", engineMove = "") {
         const puzzleArrow = arrowFor(canonicalMove, "green");
-        const sunfishArrow = arrowFor(sunfishMove, "blue");
-        const sameMove = canonicalMove && sunfishMove
-            && canonicalMove.toLowerCase() === sunfishMove.toLowerCase();
+        const engineArrow = arrowFor(engineMove, "blue");
+        const sameMove = canonicalMove && engineMove
+            && canonicalMove.toLowerCase() === engineMove.toLowerCase();
         const replayArrows = sameMove && puzzleArrow
             ? [puzzleArrow]
-            : [puzzleArrow, sunfishArrow].filter(Boolean);
-        const arrowSource = puzzleArrow && sunfishArrow && !sameMove
+            : [puzzleArrow, engineArrow].filter(Boolean);
+        const arrowSource = puzzleArrow && engineArrow && !sameMove
             ? "both"
             : puzzleArrow ? "puzzle"
-            : sunfishArrow ? "sunfish"
+            : engineArrow ? "stockfish"
             : "";
         state = { ...state, replayArrows, arrowSource };
         publish();
@@ -186,11 +183,13 @@ export function createReplaySession({
                 const next = { ...state };
                 if (cached && Number.isFinite(cached.score)) {
                     next.evaluation = cached.score;
+                    next.mate = cached.mate;
                     next.evaluationSource = cached.verified
-                        ? `Sunfish depth ${cached.depth} (cached)`
-                        : `Sunfish depth ${cached.depth} from the suggested move (checking)`;
+                        ? `Stockfish depth ${cached.depth} (cached)`
+                        : `Stockfish depth ${cached.depth} from the suggested move (checking)`;
                 } else if (!analysisHasStarted) {
                     next.evaluation = fallback;
+                    next.mate = undefined;
                     next.evaluationSource = "material fallback";
                 } else {
                     next.evaluationSource = "Previous position (checking)";
@@ -203,7 +202,8 @@ export function createReplaySession({
                 const next = { ...state };
                 if (Number.isFinite(result.score)) {
                     next.evaluation = result.score;
-                    next.evaluationSource = `Sunfish depth ${depth}`;
+                    next.mate = result.mate;
+                    next.evaluationSource = depth === 0 ? "Finished position" : `Stockfish depth ${depth}`;
                 }
                 state = next;
                 if (arrowFor(result.move, "blue")) setArrows(canonicalMove, result.move);

@@ -9,11 +9,10 @@
     import { games } from "../games/final_games";
     import { possibilities } from "../games/possibilities";
     import { gameOver, showInstructions } from "../stores";
-    import { confirmedMoveShortcut, dailyPuzzleIndex, isExtraPlayerMove, isSolvedGuess, playerMoves, scoreWord, shouldHandleWordGameKey } from "../gameRules";
+    import { FILE_LETTERS, confirmedMoveShortcut, dailyPuzzleIndex, isExtraPlayerMove, isSolvedGuess, playerMoves, scoreWord, shouldHandleWordGameKey } from "../gameRules";
     import { browserStorage, gameStorageKey, readSavedGame, removeSavedGame, safeStorage, writeSavedGame } from "./gameStorage";
     import { onMount, tick } from "svelte";
 
-    const FILE_LETTERS = "ABCDEFGH";
     export let fixture = null;
     export let dayOverride = NaN;
     export let pieceSet = "cburnett";
@@ -330,7 +329,6 @@
         .guesses { gap: 0.05rem; margin-top: 0.4rem; }
     }
     @media (max-width: 420px) and (max-height: 760px) {
-        .guesses { gap: 0.05rem; margin-top: 0.4rem; }
         :global(.keyboard) { margin-top: 0.15rem; }
         .game-play { --mobile-chess-width: 14rem; --mobile-key-height: 2rem; }
         .game-play .guess-row.history-row,

@@ -1,3 +1,6 @@
+import { isUciMove } from "./chessNotation.js";
+import { cacheAnalysis, getCachedAnalysis, nextAnalysisDepth, seedAnalysis } from "./engineAnalysisCache.js";
+
 export const DEFAULT_GAMEPLAY_NODES = 20000;
 const SETTINGS_KEY = "chortle:debug-stockfish-nodes";
 
@@ -31,19 +34,23 @@ export function createStockfishClient({
 } = {}) {
     let worker, ready, waiter;
     let queue = Promise.resolve();
+    let searchInfo;
+    let analysisPosition = "";
 
     function reset(error) {
         worker?.terminate();
         worker = undefined;
         ready = undefined;
+        analysisPosition = "";
         const previous = waiter;
         waiter = undefined;
         if (previous) { clearTimeout(previous.timer); previous.reject(error); }
     }
 
-    function command(message, pattern) {
+    function command(message, pattern, deadline = timeoutMs) {
         return new Promise((resolve, reject) => {
-            waiter = { pattern, resolve, reject, timer: setTimeout(() => reset(new Error("Stockfish timed out")), timeoutMs) };
+            waiter = { pattern, resolve, reject, timer: Number.isFinite(deadline)
+                ? setTimeout(() => reset(new Error("Stockfish timed out")), deadline) : undefined };
             try { worker.postMessage(message); }
             catch (error) { reset(error); }
         });
@@ -57,6 +64,16 @@ export function createStockfishClient({
             worker.onmessage = ({ data }) => {
                 if (worker !== owner) return;
                 for (const line of String(data).split("\n")) {
+                    if (line.startsWith("info ") && searchInfo) {
+                        const score = /\bscore (cp|mate) (-?\d+)\b/.exec(line);
+                        // Bound-only scores are not exact evaluations.
+                        if (score && !/\b(lowerbound|upperbound)\b/.test(line)) {
+                            const value = Number(score[2]);
+                            const sign = searchInfo.fen.split(/\s+/)[1] === "b" ? -1 : 1;
+                            searchInfo.score = sign * (score[1] === "mate" ? Math.sign(value || -1) * 100000 : value);
+                            searchInfo.mate = score[1] === "mate" ? sign * value : undefined;
+                        }
+                    }
                     if (!waiter?.pattern.test(line)) continue;
                     const current = waiter; waiter = undefined;
                     clearTimeout(current.timer); current.resolve(line);
@@ -77,27 +94,59 @@ export function createStockfishClient({
         } catch (error) { reset(error); return Promise.reject(error); }
     }
 
-    async function search(fen, nodes) {
-        await ensureReady();
-        // Clear search history for each position so prior analysis/replies
-        // cannot change the move selected at the fixed node budget.
-        worker.postMessage("ucinewgame");
-        await command("isready", /^readyok$/);
-        worker.postMessage(`position fen ${fen}`);
-        const line = await command(`go nodes ${normalizeNodeBudget(nodes)}`, /^bestmove /);
-        return line.split(/\s+/)[1] || "";
+    async function search(fen, { nodes, depth, signal } = {}) {
+        const cancelled = () => Object.assign(new Error("Engine analysis cancelled"), { name: "AbortError" });
+        if (signal?.aborted) throw cancelled();
+        // Registered before startup: closing a replay cannot start a stale search.
+        const abort = () => reset(cancelled());
+        signal?.addEventListener("abort", abort, { once: true });
+        try {
+            await ensureReady();
+            if (signal?.aborted) throw cancelled();
+            // Replies clear hash/history to preserve deterministic node choices.
+            // Analysis at the same position retains its transposition table.
+            if (nodes !== undefined || analysisPosition !== fen) {
+                worker.postMessage("ucinewgame");
+                analysisPosition = nodes === undefined ? fen : "";
+            }
+            await command("isready", /^readyok$/);
+            if (signal?.aborted) throw cancelled();
+            searchInfo = { fen, score: null };
+            worker.postMessage(`position fen ${fen}`);
+            const instruction = nodes !== undefined ? `go nodes ${normalizeNodeBudget(nodes)}` : `go depth ${depth}`;
+            const line = await command(instruction, /^bestmove /, nodes !== undefined ? timeoutMs : Infinity);
+            const move = line.split(/\s+/)[1] || "";
+            return { move: isUciMove(move) ? move : "", score: searchInfo.score,
+                ...(searchInfo.mate !== undefined ? { mate: searchInfo.mate } : {}) };
+        } finally {
+            signal?.removeEventListener("abort", abort);
+            searchInfo = undefined;
+        }
+    }
+
+    function enqueue(fen, options) {
+        const result = queue.then(() => search(fen, options));
+        queue = result.catch(() => undefined);
+        return result;
     }
 
     return {
         warm: () => ensureReady().catch(() => undefined),
         reply(fen, nodes = DEFAULT_GAMEPLAY_NODES) {
-            const result = queue.then(() => search(fen, nodes));
-            queue = result.catch(() => undefined);
-            return result;
+            return enqueue(fen, { nodes }).then(result => result.move);
         },
+        analyze: (fen, depth = 2, { signal } = {}) => enqueue(fen, { depth, signal }),
     };
 }
 
 const client = createStockfishClient();
 export const warmStockfish = () => client.warm();
 export const stockfishReply = (fen, nodes = gameplayNodeBudget()) => client.reply(fen, nodes);
+export const stockfishAnalyze = (fen, depth = 2, options) => client.analyze(fen, depth, options);
+export const analysisEngine = {
+    analyze: stockfishAnalyze,
+    getCached: getCachedAnalysis,
+    cache: cacheAnalysis,
+    nextDepth: nextAnalysisDepth,
+    seed: seedAnalysis,
+};

@@ -1,8 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import fs from "node:fs";
-import vm from "node:vm";
-import { performance } from "node:perf_hooks";
+
+
+
 import { Chess } from "chess.js";
 import { FIXTURES } from "../src/fixtures.js";
 import { games } from "../src/games/final_games.js";
@@ -14,7 +14,7 @@ import { gameStorageKey, normalizeSavedGame, readSavedGame, safeStorage, writeSa
 import { buildSolutionPositions, evaluationLabel, evaluationPercent, fenAfterUci, materialEvaluation } from "../src/lib/solutionReplay.js";
 import { createAnalysisCoordinator } from "../src/lib/analysisCoordinator.js";
 import { createReplaySession } from "../src/lib/replaySession.js";
-import { cacheSunfishAnalysis, getCachedSunfishAnalysis, nextSunfishAnalysisDepth, seedSunfishAnalysis, sunfishAnalyze } from "../src/lib/sunfishEngine.js";
+import { cacheAnalysis, getCachedAnalysis, nextAnalysisDepth, seedAnalysis } from "../src/lib/engineAnalysisCache.js";
 
 const mixed = FIXTURES.find((fixture) => fixture.id === "mixed-entry");
 
@@ -38,19 +38,7 @@ test("known move shortcuts follow revealed chess order, not word columns", () =>
     assert.equal(confirmedMoveShortcut("A", [first], restored.guesses, restored.statuses, restored.actionHistory), "a4a5");
 });
 
-function loadSunfish() {
-    const source = fs.readFileSync(new URL("../src/lib/sunfish.worker.js", import.meta.url), "utf8");
-    const context = { module: { exports: {} }, exports: {}, performance, console };
-    vm.runInNewContext(source, context, { filename: "sunfish.js" });
-    return context.module.exports;
-}
 
-function sunfishMove(engine, fen, depth = 2) {
-    const output = [];
-    engine.engine(`position fen ${fen}`, (line) => output.push(line));
-    engine.engine(`go depth ${depth}`, (line) => output.push(line));
-    return output.findLast((line) => line.startsWith("bestmove "))?.split(/\s+/)[1] || "";
-}
 
 function memoryStorage() {
     const values = new Map();
@@ -61,13 +49,6 @@ function memoryStorage() {
     };
 }
 
-function sunfishEvaluation(engine, fen, depth = 1) {
-    const output = [];
-    engine.engine(`position fen ${fen}`, (line) => output.push(line));
-    engine.engine(`go depth ${depth}`, (line) => output.push(line));
-    const info = output.findLast((line) => line.startsWith("info ") && line.includes(" score cp "));
-    return info ? Number(info.match(/ score cp (-?\d+)/)?.[1]) : NaN;
-}
 
 test("published fixture records have valid move projections", () => {
     for (const fixture of FIXTURES.filter((item) => !item.mated)) {
@@ -267,19 +248,6 @@ test("the tiny engine is deterministic, legal, and finds immediate mate", () => 
     assert.equal(position.isCheckmate(), true);
 });
 
-test("vendored Sunfish accepts puzzle FEN and gives a deterministic legal reply", () => {
-    const position = new Chess();
-    for (const uci of ["f2f3", "e7e5", "g2g4"]) {
-        position.move({ from: uci.slice(0, 2), to: uci.slice(2, 4) });
-    }
-    const sunfish = loadSunfish();
-    const first = sunfishMove(sunfish, position.fen());
-    const second = sunfishMove(sunfish, position.fen());
-    assert.equal(first, second);
-    assert.equal(first, "d8h4");
-    assert.ok(position.move({ from: first.slice(0, 2), to: first.slice(2, 4), promotion: first[4] }));
-});
-
 test("solution replay starts at the playable position and visits every canonical ply", () => {
     const game = games.find((item) => item.word === "focal");
     const positions = buildSolutionPositions(game.fen, game.moves);
@@ -426,17 +394,17 @@ test("solution evaluation fallback is deterministic and readable", () => {
     assert.equal(evaluationPercent(10000), 95);
 });
 
-test("Sunfish analysis cache restores moves and carries a suggested child score", () => {
+test("Engine analysis cache restores moves and carries a suggested child score", () => {
     const parentFen = "cache-parent";
     const childFen = "cache-child";
-    cacheSunfishAnalysis(parentFen, 14, { move: "c3c2", score: 375 });
-    cacheSunfishAnalysis(parentFen, 4, { move: "a1a2", score: 0 });
+    cacheAnalysis(parentFen, 14, { move: "c3c2", score: 375 });
+    cacheAnalysis(parentFen, 4, { move: "a1a2", score: 0 });
 
-    const parent = getCachedSunfishAnalysis(parentFen);
+    const parent = getCachedAnalysis(parentFen);
     assert.deepEqual(parent, { depth: 14, move: "c3c2", score: 375, verified: true });
 
-    seedSunfishAnalysis(childFen, parent);
-    assert.deepEqual(getCachedSunfishAnalysis(childFen), {
+    seedAnalysis(childFen, parent);
+    assert.deepEqual(getCachedAnalysis(childFen), {
         depth: 14,
         move: "",
         score: 375,
@@ -445,35 +413,35 @@ test("Sunfish analysis cache restores moves and carries a suggested child score"
     // A provisional look-ahead still represents a real depth-14 search.  The
     // next position must continue from there rather than visibly restarting
     // at depth 2 when the player presses Next.
-    assert.equal(nextSunfishAnalysisDepth(childFen), 15);
+    assert.equal(nextAnalysisDepth(childFen), 15);
 
-    cacheSunfishAnalysis(childFen, 2, { move: "d4d5", score: 410 });
-    assert.deepEqual(getCachedSunfishAnalysis(childFen), {
+    cacheAnalysis(childFen, 2, { move: "d4d5", score: 410 });
+    assert.deepEqual(getCachedAnalysis(childFen), {
         depth: 14,
         move: "",
         score: 375,
         verified: false,
     });
-    seedSunfishAnalysis(childFen, { depth: 4, score: 20, verified: true });
-    assert.equal(nextSunfishAnalysisDepth(childFen), 15);
-    cacheSunfishAnalysis(childFen, 15, { move: "d4d5", score: 410 });
-    assert.deepEqual(getCachedSunfishAnalysis(childFen), {
+    seedAnalysis(childFen, { depth: 4, score: 20, verified: true });
+    assert.equal(nextAnalysisDepth(childFen), 15);
+    cacheAnalysis(childFen, 15, { move: "d4d5", score: 410 });
+    assert.deepEqual(getCachedAnalysis(childFen), {
         depth: 15,
         move: "d4d5",
         score: 410,
         verified: true,
     });
-    assert.equal(nextSunfishAnalysisDepth("not-in-cache"), 2);
+    assert.equal(nextAnalysisDepth("not-in-cache"), 2);
 });
 
-test("Sunfish cache never lets a parent seed replace a verified child", () => {
+test("Engine cache never lets a parent seed replace a verified child", () => {
     const parent = { depth: 12, move: "c3c2", score: 375, verified: true };
     const childFen = "cache-child-with-direct-result";
-    cacheSunfishAnalysis(childFen, 7, { move: "d4d5", score: 410 });
+    cacheAnalysis(childFen, 7, { move: "d4d5", score: 410 });
 
-    seedSunfishAnalysis(childFen, parent);
+    seedAnalysis(childFen, parent);
 
-    assert.deepEqual(getCachedSunfishAnalysis(childFen), {
+    assert.deepEqual(getCachedAnalysis(childFen), {
         depth: 7,
         move: "d4d5",
         score: 410,
@@ -491,7 +459,7 @@ test("analysis coordinator owns progressive search, child prefetch, and cancella
     const engine = {
         analyze: async (fen, depth, { signal } = {}) => {
             await new Promise((resolve) => setTimeout(resolve, 0));
-            if (signal?.aborted) throw new Error("Sunfish analysis cancelled");
+            if (signal?.aborted) throw new Error("Engine analysis cancelled");
             calls.push({ fen, depth });
             return { move: "a1a2", score: depth * 100 };
         },
@@ -535,7 +503,7 @@ test("slow child prefetch is cancelled and foreground analysis continues", async
             return new Promise((resolve, reject) => {
                 signal.addEventListener("abort", () => {
                     childAborted = true;
-                    reject(new Error("Sunfish analysis cancelled"));
+                    reject(new Error("Engine analysis cancelled"));
                 }, { once: true });
             });
         },
@@ -561,7 +529,7 @@ test("analysis resumes after worker contention outlasts the old retry limit", as
     const scores = [];
     const coordinator = createAnalysisCoordinator({
         analyze: async () => {
-            if (++attempts <= 9) throw new Error("Sunfish is already searching");
+            if (++attempts <= 9) throw new Error("Engine is already searching");
             return { move: "", score: 250 };
         },
         getCached: () => null,
@@ -584,7 +552,7 @@ test("analysis coordinator suppresses stale callbacks when a position changes", 
             calls.push({ fen, depth });
             if (fen === "old-position") {
                 return new Promise((resolve, reject) => {
-                    signal?.addEventListener("abort", () => reject(new Error("Sunfish analysis cancelled")), { once: true });
+                    signal?.addEventListener("abort", () => reject(new Error("Engine analysis cancelled")), { once: true });
                 });
             }
             return Promise.resolve({ move: "", score: 100 });
@@ -619,113 +587,6 @@ test("analysis coordinator suppresses stale callbacks when a position changes", 
         { fen: "old-position", depth: 2 },
         { fen: "new-position", depth: 2 },
     ]);
-});
-
-test("aborting before Sunfish is ready never starts a stale search", async () => {
-    const originalWorker = globalThis.Worker;
-    let worker;
-    class DelayedWorker {
-        constructor() {
-            worker = this;
-            this.listeners = new Map();
-            this.messages = [];
-        }
-        addEventListener(type, listener) {
-            this.listeners.set(type, listener);
-        }
-        postMessage(message) {
-            this.messages.push(message);
-        }
-        terminate() {}
-        emit(type, event) {
-            this.listeners.get(type)?.(event);
-        }
-    }
-
-    globalThis.Worker = DelayedWorker;
-    try {
-        const controller = new AbortController();
-        const analysis = sunfishAnalyze("8/8/8/8/8/8/8/K6k w - - 0 1", 14, Infinity, { signal: controller.signal });
-        controller.abort();
-        await assert.rejects(analysis, /Sunfish analysis cancelled/);
-        worker.emit("message", { data: "readyok" });
-        await new Promise((resolve) => setTimeout(resolve, 0));
-        assert.equal(worker.messages.some((message) => String(message).startsWith("go depth")), false);
-        worker.emit("error", {});
-    } finally {
-        globalThis.Worker = originalWorker;
-    }
-});
-
-test("aborting an active Sunfish search ignores a late best move", async () => {
-    const originalWorker = globalThis.Worker;
-    let worker;
-    class ActiveWorker {
-        constructor() {
-            worker = this;
-            this.listeners = new Map();
-            this.messages = [];
-            this.terminated = false;
-        }
-        addEventListener(type, listener) {
-            this.listeners.set(type, listener);
-        }
-        postMessage(message) {
-            this.messages.push(message);
-        }
-        terminate() {
-            this.terminated = true;
-        }
-        emit(type, event) {
-            this.listeners.get(type)?.(event);
-        }
-    }
-
-    globalThis.Worker = ActiveWorker;
-    try {
-        const controller = new AbortController();
-        const analysis = sunfishAnalyze("8/8/8/8/8/8/8/K6k w - - 0 1", 14, Infinity, { signal: controller.signal });
-        worker.emit("message", { data: "readyok" });
-        await new Promise((resolve) => setTimeout(resolve, 0));
-        assert.equal(worker.messages.some((message) => String(message).startsWith("go depth 14")), true);
-
-        controller.abort();
-        await assert.rejects(analysis, /Sunfish analysis cancelled/);
-        assert.equal(worker.terminated, true);
-
-        const oldWorker = worker;
-        let settled = false;
-        const replacement = sunfishAnalyze("8/8/8/8/8/8/8/K6k w - - 0 1", 2, Infinity);
-        replacement.then(() => { settled = true; }, () => { settled = true; });
-        assert.notEqual(worker, oldWorker);
-        oldWorker.emit("message", { data: "readyok" });
-        await new Promise((resolve) => setTimeout(resolve, 0));
-        assert.equal(worker.messages.some((message) => message.startsWith("go depth")), false);
-        worker.emit("message", { data: "readyok" });
-        await new Promise((resolve) => setTimeout(resolve, 0));
-        oldWorker.emit("message", { data: "info depth 14 score cp 999" });
-        oldWorker.emit("message", { data: "bestmove e2e4" });
-        oldWorker.emit("error", {});
-        await new Promise((resolve) => setTimeout(resolve, 0));
-        assert.equal(settled, false);
-        assert.equal(worker.terminated, false);
-        worker.emit("message", { data: "info depth 2 score cp 125" });
-        worker.emit("message", { data: "bestmove a1a2" });
-        assert.deepEqual(await replacement, { move: "a1a2", score: 125 });
-    } finally {
-        worker?.emit("error", {});
-        globalThis.Worker = originalWorker;
-    }
-});
-
-test("vendored Sunfish returns a deterministic evaluation score", () => {
-    const position = new Chess();
-    position.move({ from: "e2", to: "e4" });
-    const sunfish = loadSunfish();
-    const first = sunfishEvaluation(sunfish, position.fen());
-    const second = sunfishEvaluation(sunfish, position.fen());
-    assert.ok(Number.isFinite(first));
-    assert.equal(first, second);
 });
 
 test("a correct mate does not become a self-mate banner", () => {

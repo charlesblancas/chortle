@@ -1,3 +1,6 @@
+import { isUciMove } from "./chessNotation.js";
+import { isSolvedGuess } from "../gameRules.js";
+
 const STORAGE_VERSION = 1;
 const COLUMNS = 5;
 const VALID_STATUS = new Set([-1, 0, 1, 2]);
@@ -52,8 +55,8 @@ function isAction(action) {
     return action
         && typeof action === "object"
         && /^[A-H]$/.test(action.letter || "")
-        && /^[a-h][1-8][a-h][1-8][qrbn]?$/.test(action.uci || "")
-        && (!action.reply || /^[a-h][1-8][a-h][1-8][qrbn]?$/.test(action.reply))
+        && isUciMove(action.uci)
+        && (!action.reply || isUciMove(action.reply))
         && typeof action.moveCorrect === "boolean";
 }
 
@@ -86,9 +89,7 @@ export function normalizeSavedGame(value) {
     const solved = typeof value.solved === "boolean"
         ? value.solved
         : hasStoredActionHistory
-            ? value.statuses.some((status, row) => status.every((entry) => entry === 2)
-                && actionHistory[row].length === chessLetterCount(value.guesses[row])
-                && actionHistory[row].every((action) => action.moveCorrect))
+            ? value.statuses.some((status, row) => isSolvedGuess(status, value.guesses[row], actionHistory[row]))
             : value.statuses.some((status) => status.every((entry) => entry === 2));
     let currentRow = value.currentRow;
     let actions = value.actions.map((action) => ({ ...action }));

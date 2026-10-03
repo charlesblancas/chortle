@@ -68,6 +68,15 @@ export function shouldHandleWordGameKey(event) {
     return /^[A-Za-z]$/.test(event.key || "") || event.key === "Backspace" || event.key === "Enter";
 }
 
+export function shouldHandleReplayKey(event) {
+    if (!event || event.defaultPrevented || event.repeat || event.key !== "Backspace") return false;
+    if (event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) return false;
+    const target = event.target;
+    // Replay navigation remains available while its buttons own focus.
+    const tag = target?.tagName?.toLowerCase();
+    return !target?.isContentEditable && !["input", "textarea", "select"].includes(tag);
+}
+
 export function scoreWord(guess, target) {
     const remaining = {};
     const result = Array(5).fill(0);

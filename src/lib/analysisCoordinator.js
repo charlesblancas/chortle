@@ -1,30 +1,24 @@
 import { fenAfterUci } from "./solutionReplay.js";
-import {
-    cacheSunfishAnalysis,
-    cancelSunfishAnalysis,
-    getCachedSunfishAnalysis,
-    nextSunfishAnalysisDepth,
-    seedSunfishAnalysis,
-    sunfishAnalyze,
-} from "./sunfishEngine.js";
-
-const ANALYSIS_TIMEOUT_MS = Infinity;
+import { analysisEngine } from "./stockfishEngine.js";
+import { Chess } from "chess.js";
 const PREFETCH_DEPTH = 2;
 const PREFETCH_BUDGET_MS = 100;
 const MAX_RETRIES = 8;
 const RETRY_DELAY_MS = 40;
 
-const defaultEngine = {
-    analyze: (fen, depth, { signal } = {}) => sunfishAnalyze(fen, depth, ANALYSIS_TIMEOUT_MS, { signal }),
-    getCached: getCachedSunfishAnalysis,
-    cache: cacheSunfishAnalysis,
-    nextDepth: nextSunfishAnalysisDepth,
-    seed: seedSunfishAnalysis,
-    cancel: cancelSunfishAnalysis,
-};
+function terminalResult(fen) {
+    try {
+        const board = new Chess(fen);
+        if (board.isCheckmate()) {
+            return { move: "", score: board.turn() === "w" ? -100000 : 100000, mate: 0 };
+        }
+        if (board.isStalemate()) return { move: "", score: 0 };
+    } catch { /* The engine handles invalid positions. */ }
+    return null;
+}
 
 function isCancellation(error) {
-    return error?.message === "Sunfish analysis cancelled";
+    return error?.name === "AbortError" || /analysis cancelled$/.test(error?.message || "");
 }
 
 /**
@@ -34,7 +28,7 @@ function isCancellation(error) {
  * depth, cache lookup/seeding, and child prefetch. The view only supplies a
  * position and receives start/depth notifications.
  */
-export function createAnalysisCoordinator(engine = defaultEngine) {
+export function createAnalysisCoordinator(engine = analysisEngine) {
     let activeSession;
     let nextSessionId = 0;
 
@@ -52,6 +46,7 @@ export function createAnalysisCoordinator(engine = defaultEngine) {
 
     async function prefetchChild(positionFen, session) {
         if (!positionFen || !isCurrent(session)) return;
+        if (terminalResult(positionFen)) return;
         if (engine.getCached(positionFen)?.verified) return;
         if (session.prefetched.has(positionFen)) return;
         session.prefetched.add(positionFen);
@@ -73,9 +68,9 @@ export function createAnalysisCoordinator(engine = defaultEngine) {
         }
     }
 
-    async function prefetchLikelyChildren(positionFen, canonicalMove, sunfishMove, session) {
+    async function prefetchLikelyChildren(positionFen, canonicalMove, engineMove, session) {
         const childFens = new Set(
-            [canonicalMove, sunfishMove]
+            [canonicalMove, engineMove]
                 .map((move) => fenAfterUci(positionFen, move))
                 .filter(Boolean),
         );
@@ -95,9 +90,19 @@ export function createAnalysisCoordinator(engine = defaultEngine) {
         activeSession = session;
 
         try {
+            const terminal = terminalResult(positionFen);
+            if (terminal) {
+                onStart({ positionFen, canonicalMove, cached: null });
+                if (isCurrent(session)) onDepth({ positionFen, canonicalMove, depth: 0, result: terminal });
+                return;
+            }
             const cached = engine.getCached(positionFen);
             if (!isCurrent(session)) return;
             onStart({ positionFen, canonicalMove, cached });
+            if (cached?.verified && (cached.analysisComplete || Math.abs(cached.mate) === 1)) return;
+            let previousMate;
+            let previousMove;
+            let mateAgreement = 0;
 
             for (let depth = engine.nextDepth(positionFen); isCurrent(session); depth += 1) {
                 let result;
@@ -111,18 +116,30 @@ export function createAnalysisCoordinator(engine = defaultEngine) {
                         // A competing live reply may still be using the shared
                         // worker. Preserve the old retry behaviour without
                         // leaking that coordination into the view.
-                        if (error?.message === "Sunfish search timed out") break;
+                        if (error?.message === "Stockfish timed out") break;
                         // Contention is temporary, not a failed search. Keep
                         // waiting while this session remains active.
-                        if (error?.message === "Sunfish is already searching") attempt -= 1;
+                        if (error?.message === "Engine is already searching") attempt -= 1;
                         await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY_MS));
                     }
                 }
                 if (!isCurrent(session) || !result) return;
+                if (Number.isInteger(result.mate) && result.mate !== 0 && result.move) {
+                    mateAgreement = result.mate === previousMate && result.move === previousMove
+                        ? mateAgreement + 1 : 1;
+                    previousMate = result.mate;
+                    previousMove = result.move;
+                } else {
+                    mateAgreement = 0;
+                    previousMate = previousMove = undefined;
+                }
+                const complete = Math.abs(result.mate) === 1 || mateAgreement >= 3;
+                if (complete) result = { ...result, analysisComplete: true };
                 engine.cache(positionFen, depth, result);
                 if (!isCurrent(session)) return;
                 onDepth({ positionFen, canonicalMove, depth, result });
                 if (!isCurrent(session)) return;
+                if (!result.move || complete) return;
                 await prefetchLikelyChildren(positionFen, canonicalMove, result.move, session);
             }
         } catch (error) {

@@ -1,9 +1,8 @@
 const MATERIAL = { p: 100, n: 320, b: 330, r: 500, q: 900, k: 0 };
 const MATE = 100000;
 
-export function isUciMove(move) {
-    return /^[a-h][1-8][a-h][1-8][qrbn]?$/.test(move || "");
-}
+import { isUciMove } from "./chessNotation.js";
+export { isUciMove } from "./chessNotation.js";
 
 function uci(move) {
     return `${move.from}${move.to}${move.promotion || ""}`;

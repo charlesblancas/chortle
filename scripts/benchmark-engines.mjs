@@ -42,7 +42,7 @@ const server = http.createServer(async (req, res) => {
     try {
         const file = req.url.slice(1);
         if (!file) { res.end('<!doctype html><title>Engine benchmark</title>'); return; }
-        const source = file === 'sunfish.js' ? path.resolve('src/lib/sunfish.worker.js') : path.join(cache, path.basename(file));
+        const source = file === 'sunfish.js' ? path.resolve('scripts/fixtures/sunfish.worker.js') : path.join(cache, path.basename(file));
         res.setHeader('Content-Type', file.endsWith('.wasm') ? 'application/wasm' : 'text/javascript');
         res.end(await fs.readFile(source));
     } catch { res.writeHead(404).end(); }

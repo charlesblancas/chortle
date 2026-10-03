@@ -65,7 +65,11 @@ export function materialEvaluation(fen) {
     return score;
 }
 
-export function evaluationLabel(scoreCp) {
+export function evaluationLabel(scoreCp, mate) {
+    if (Number.isFinite(mate)) {
+        const winner = scoreCp > 0 ? "White" : "Black";
+        return mate === 0 ? `${winner} wins by checkmate` : `${winner} mates in ${Math.abs(mate)}`;
+    }
     if (!Number.isFinite(scoreCp) || Math.abs(scoreCp) < 5) return "Equal";
     const pawns = Math.abs(scoreCp / 100).toFixed(1);
     return scoreCp > 0 ? `White +${pawns}` : `Black +${pawns}`;

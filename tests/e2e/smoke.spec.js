@@ -680,7 +680,7 @@ test("a solved game can replay its solution without changing the result", async 
     await page.getByRole("button", { name: "Go to puzzle end" }).click();
     await expect(page.getByRole("button", { name: "Go to puzzle end" })).toBeDisabled();
     await expect(page.getByRole("button", { name: "Go to puzzle start" })).toBeEnabled();
-    await expect(page.locator(".replay-board")).toHaveAttribute("data-arrow-source", "sunfish");
+    await expect(page.locator(".replay-board")).toHaveAttribute("data-arrow-source", "stockfish");
     await expect(page.locator(".solution-viewer .cg-shapes [marker-end]")).toHaveCount(1);
 
     await page.getByRole("button", { name: "Back to result" }).click();
@@ -763,10 +763,10 @@ test("solution replay keeps Backspace as previous", async ({ page }) => {
 test("switching tabs does not reset the active solution analysis", async ({ page }) => {
     await page.addInitScript(() => {
         const NativeWorker = window.Worker;
-        window.__sunfishTerminations = 0;
+        window.__engineTerminations = 0;
         window.Worker = class CountingWorker extends NativeWorker {
             terminate() {
-                window.__sunfishTerminations += 1;
+                window.__engineTerminations += 1;
                 return super.terminate();
             }
         };
@@ -776,7 +776,7 @@ test("switching tabs does not reset the active solution analysis", async ({ page
     await page.getByRole("dialog").getByRole("button", { name: "View solution" }).click();
     await expect(page.locator(".evaluation-bar")).toBeVisible();
 
-    const before = await page.evaluate(() => window.__sunfishTerminations);
+    const before = await page.evaluate(() => window.__engineTerminations);
     await page.evaluate(() => {
         Object.defineProperty(document, "hidden", { configurable: true, value: true });
         document.dispatchEvent(new Event("visibilitychange"));
@@ -784,7 +784,7 @@ test("switching tabs does not reset the active solution analysis", async ({ page
         document.dispatchEvent(new Event("visibilitychange"));
     });
     await page.waitForTimeout(100);
-    expect(await page.evaluate(() => window.__sunfishTerminations)).toBe(before);
+    expect(await page.evaluate(() => window.__engineTerminations)).toBe(before);
 });
 
 test("a restored solution replay keeps its place after a browser reload", async ({ page }) => {

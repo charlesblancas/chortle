@@ -4,6 +4,7 @@
     import { createReplaySession } from "./replaySession.js";
     import { browserStorage } from "./gameStorage";
     import { evaluationLabel, evaluationPercent } from "./solutionReplay";
+    import { shouldHandleReplayKey } from "../gameRules";
 
     export let fen;
     export let movesString;
@@ -40,7 +41,7 @@
         ? replay.customTrail[replay.customIndex]?.move || ""
         : position.move || position.setup?.move || "";
     $: whiteShare = evaluationPercent(replay.evaluation);
-    $: evaluationText = evaluationLabel(replay.evaluation);
+    $: evaluationText = evaluationLabel(replay.evaluation, replay.mate);
     $: positionText = customPosition
         ? `Custom position · ${replay.customBaseIndex}/${positions.length - 1}`
         : positionIndex === 0
@@ -69,9 +70,7 @@
     }
 
     function handleKeydown(event) {
-        if (!interactive || event.key !== "Backspace") return;
-        const target = event.target;
-        if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target?.isContentEditable) return;
+        if (!interactive || !shouldHandleReplayKey(event)) return;
         event.preventDefault();
         goPrevious();
     }
@@ -91,7 +90,7 @@
 <div class="solution-viewer" aria-label="Solution chessboard">
     <p class="position" aria-live="polite">{positionText} · {positionIndex}/{positions.length - 1}</p>
 
-    <div class="replay-board" data-arrow-source={replay.arrowSource} aria-label={replay.arrowSource === "both" ? "Puzzle continuation and Sunfish suggestion arrows" : replay.arrowSource === "puzzle" ? "Puzzle continuation arrow" : replay.arrowSource === "sunfish" ? "Sunfish suggestion arrow" : "No move suggestion arrow"}>
+    <div class="replay-board" data-arrow-source={replay.arrowSource} aria-label={replay.arrowSource === "both" ? "Puzzle continuation and Stockfish suggestion arrows" : replay.arrowSource === "puzzle" ? "Puzzle continuation arrow" : replay.arrowSource === "stockfish" ? "Stockfish suggestion arrow" : "No move suggestion arrow"}>
         <Chess {fen} {movesString} {pieceSet} replay={true} replayFen={replay.boardFen} replayMove={displayMove} replayArrows={replay.replayArrows} playable={interactive} readOnly={!interactive} disabled={!interactive} on:replayMove={handleReplayMove} />
         <div class="evaluation-wrap">
             <div class="evaluation-bar" aria-label={`Evaluation: ${evaluationText}`} title={`Evaluation: ${evaluationText}`}>
@@ -101,7 +100,7 @@
             <span class="eval-mark white-mark" aria-hidden="true">+</span>
         </div>
     </div>
-    <p class="arrow-legend" aria-label="Move arrow legend"><span><i class="arrow-swatch sunfish-swatch" aria-hidden="true"></i>Blue: Sunfish</span><span><i class="arrow-swatch puzzle-swatch" aria-hidden="true"></i>Green: puzzle line</span></p>
+    <p class="arrow-legend" aria-label="Move arrow legend"><span><i class="arrow-swatch engine-swatch" aria-hidden="true"></i>Blue: Stockfish</span><span><i class="arrow-swatch puzzle-swatch" aria-hidden="true"></i>Green: puzzle line</span></p>
     <p class="evaluation-text">{evaluationText} <span>({replay.evaluationSource})</span></p>
 
     <div class="replay-controls" aria-label="Solution replay controls">
@@ -129,7 +128,7 @@
     .arrow-legend { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.7rem; margin: 0.3rem 0 0; color: var(--muted); font: 600 0.58rem/1 var(--mono); }
     .arrow-legend span { display: inline-flex; align-items: center; gap: 0.22rem; }
     .arrow-swatch { display: inline-block; width: 0.7rem; height: 0.18rem; border-radius: 999px; }
-    .sunfish-swatch { background: #003088; }
+    .engine-swatch { background: #003088; }
     .puzzle-swatch { background: #15781b; }
     .replay-controls { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.3rem; margin-top: 0.8rem; }
     .replay-controls button { min-width: 0; padding: 0.5rem 0.25rem; font-size: 0.62rem; }
