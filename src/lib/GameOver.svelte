@@ -24,22 +24,18 @@
     let shareFailed = false;
     let shareStatus = "";
     let manualCopy;
-    let gameOverValue;
     const dispatch = createEventDispatcher();
     onMount(() => {
         const touchDevice = typeof window.matchMedia === "function"
             && window.matchMedia("(pointer: coarse)").matches;
         useNativeShare = touchDevice && typeof navigator.share === "function";
     });
-    gameOver.subscribe((value) => {
-        gameOverValue = value;
-        if (value) gameSummary = generateSummary();
-    });
+    $: gameSummary = generateSummary(statuses, guesses, actionHistory, solutionMoves);
 
     function numberToSquare(number) {
         return number === 0 ? "⬛" : number === 1 ? "🟨" : number === 2 ? "🟩" : "⬜";
     }
-    function generateSummary() {
+    function generateSummary(statuses, guesses, actionHistory, solutionMoves) {
         return statuses.map((status, index) => {
             if (!status.some((value) => value >= 0)) return "";
             return scoreShareRow(guesses[index] || "", status, actionHistory[index] || [], solutionMoves)
@@ -128,14 +124,14 @@
     }
 </script>
 
-<Modal show={gameOverValue && !solutionViewing && !$showInstructions} labelledBy="result-title">
+<Modal show={$gameOver && !solutionViewing && !$showInstructions} labelledBy="result-title">
     <p class="eyebrow">Puzzle {String(day).padStart(4, "0")}</p>
     <h1 id="result-title">{solved ? `Solved in ${attempts}/${maxAttempts}` : "Out of attempts"}</h1>
     <p class="answer">Today’s answer: <strong>{word}</strong></p>
     <p class="summary" aria-label="Result grid">{gameSummary}</p>
     <p>{extraMovesMessage}</p>
     <button class:copied class="action-button result-action share" type="button" on:click={shareResult} disabled={sharing}>{copied ? "Copied" : sharing ? "Sharing…" : "Share result"}</button>
-    {#if solved}<button class="action-button result-action solution" type="button" on:click={() => dispatch("viewSolution")}>View solution</button>{/if}
+    <button class="action-button result-action solution" type="button" on:click={() => dispatch("viewSolution")}>View solution</button>
     {#if import.meta.env.DEV}<button class="action-button result-action reset" type="button" on:click={() => dispatch("reset")}>Reset puzzle</button>{/if}
     <p
         class:copy-failed={copyFailed || shareFailed}

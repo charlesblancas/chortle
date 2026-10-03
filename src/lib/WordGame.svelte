@@ -94,8 +94,9 @@
                 mated = saved.mated;
                 terminal = saved.terminal || saved.mated;
                 solved = saved.solved;
+                if (!saved.completed) closeSolution();
                 // Let child components receive the restored rows before the
-                // result modal subscribes to the completed state.  This keeps
+                // result modal opens for the completed state. This keeps
                 // a completed game visible, including its result grid, after
                 // a refresh.
                 tick().then(() => {
@@ -104,6 +105,7 @@
                 });
             } else {
                 gameOver.set(false);
+                closeSolution();
             }
         } else {
             if (fixture?.autoSubmit) {
@@ -124,6 +126,7 @@
                 });
             } else {
                 gameOver.set(false);
+                closeSolution();
             }
         }
         hydrated = true;
@@ -269,7 +272,7 @@
 <Instructions />
 <div class="meta"><span>Puzzle {String(selectedDay).padStart(4, "0")}</span><span>{dateLabel}</span><span>Attempt {currentRow + 1}/{ROWS}</span></div>
 <GameOver word={answer} {statuses} {guesses} {actionHistory} {solutionMoves} {solved} {extraMoves} day={selectedDay} attempts={currentRow + 1} maxAttempts={ROWS} {solutionViewing} on:viewSolution={openSolution} on:reset={resetDebugGame} />
-<div class="game-play" class:history-compact={currentRow > 0} class:four-guesses={ROWS === 4} class:solution-board={$gameOver && solved}>
+<div class="game-play" class:history-compact={currentRow > 0} class:four-guesses={ROWS === 4} class:solution-board={$gameOver}>
     <div class="guesses">
         {#each guesses as guess, index}
             <div class="guess-row" class:active-row={index === currentRow} class:history-row={index < currentRow} class:unused-row={index > currentRow}>
@@ -278,7 +281,7 @@
         {/each}
     </div>
     <GameError {message} />
-    {#if $gameOver && solved}
+    {#if $gameOver}
         <SolutionViewer fen={game.fen} movesString={game.moves} {pieceSet} {replayStateKey} interactive={solutionViewing} on:close={closeSolution} />
     {:else}
         <div class="live-play">
