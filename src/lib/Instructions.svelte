@@ -1,21 +1,38 @@
 <script>
     import Modal from "./Modal.svelte";
     import { showInstructions } from "../stores";
-    import { onMount } from "svelte";
+    import { onMount, tick } from "svelte";
     import { safeStorage } from "./gameStorage";
     import Tutorial from "./Tutorial.svelte";
 
     export let pieceSet = "cburnett";
     let tutorial = false;
+    let confirmClose = false;
+    let keepPlayingButton;
+    let closeFocus;
 
     const INSTRUCTIONS_SEEN_KEY = "chortle:instructions-seen-v1";
     const TUTORIAL_COMPLETED_KEY = "chortle:tutorial-completed-v1";
     const storage = safeStorage();
-    const closeInstructions = () => { tutorial = false; showInstructions.set(false); };
+    const closeInstructions = () => { confirmClose = false; tutorial = false; showInstructions.set(false); };
     const completeTutorial = () => {
         storage.setItem(TUTORIAL_COMPLETED_KEY, "1");
         storage.setItem(INSTRUCTIONS_SEEN_KEY, "1");
     };
+    function requestClose() {
+        if (storage.getItem(TUTORIAL_COMPLETED_KEY)) return closeInstructions();
+        closeFocus = document.activeElement;
+        confirmClose = true;
+        tick().then(() => keepPlayingButton?.focus());
+    }
+    function keepPlaying() {
+        confirmClose = false;
+        tick().then(() => closeFocus?.isConnected && closeFocus.focus());
+    }
+    function skipTutorial() {
+        completeTutorial();
+        closeInstructions();
+    }
     onMount(() => {
         const seenBefore = storage.getItem(INSTRUCTIONS_SEEN_KEY);
         if (!storage.getItem(TUTORIAL_COMPLETED_KEY)) {
@@ -27,18 +44,29 @@
             storage.setItem(INSTRUCTIONS_SEEN_KEY, "1");
             showInstructions.set(true);
         }
-        const onKeydown = (event) => { if (event.key === "Escape" && $showInstructions) closeInstructions(); };
+        const onKeydown = (event) => { if (event.key === "Escape" && $showInstructions) confirmClose ? keepPlaying() : requestClose(); };
         window.addEventListener("keydown", onKeydown);
         return () => window.removeEventListener("keydown", onKeydown);
     });
 </script>
 
-<Modal show={$showInstructions} labelledBy={tutorial ? "tutorial-title" : "instructions-title"} cardClass={tutorial ? "tutorial-card" : "instructions-card"}>
+<Modal show={$showInstructions} labelledBy={confirmClose ? "tutorial-close-title" : tutorial ? "tutorial-title" : "instructions-title"} cardClass={tutorial ? "tutorial-card" : "instructions-card"}>
+    {#if confirmClose}
+        <section class="close-confirmation" aria-labelledby="tutorial-close-title">
+            <h1 id="tutorial-close-title">Leave the tutorial?</h1>
+            <p>You can replay it anytime from the ? at the top right.</p>
+            <div class="instructions-actions">
+                <button bind:this={keepPlayingButton} type="button" on:click={keepPlaying}>Keep playing</button>
+                <button type="button" on:click={skipTutorial}>Leave tutorial</button>
+            </div>
+        </section>
+    {/if}
+ <div class="instructions-body" inert={confirmClose} aria-hidden={confirmClose ? "true" : undefined}>
     {#if tutorial}
-        <Tutorial {pieceSet} on:complete={completeTutorial} on:close={closeInstructions} on:instructions={() => tutorial = false} />
+        <Tutorial {pieceSet} active={!confirmClose} on:complete={completeTutorial} on:close={requestClose} on:instructions={() => tutorial = false} />
     {:else}
     <div class="instructions-content">
-        <button class="close" type="button" aria-label="Close instructions" title="Close instructions" on:click={closeInstructions}>×</button>
+        <button class="close" type="button" aria-label="Close instructions" title="Close instructions" on:click={requestClose}>×</button>
         <p class="eyebrow">How to play</p>
         <h1 id="instructions-title">Find the word through the board.</h1>
         <p class="intro">Guess the five-letter answer in four tries. You win when every letter is green and every A–H chess move is correct.</p>
@@ -61,11 +89,15 @@
             <p>Right letter; move belongs elsewhere in the chess line.</p>
         </div>
     </div>
-    <div class="instructions-actions"><button on:click={() => tutorial = true}>Play tutorial</button><button on:click={closeInstructions}>Understood</button></div>
+    <div class="instructions-actions"><button on:click={() => tutorial = true}>Play tutorial</button><button on:click={requestClose}>Understood</button></div>
     {/if}
+    </div>
 </Modal>
 
 <style>
+    .instructions-body { display: contents; }
+    .instructions-body[inert] { visibility: hidden; }
+    .close-confirmation { position: absolute; inset: 0; z-index: 2; display: flex; flex-direction: column; justify-content: center; padding: 1.25rem; background: var(--panel); }
     :global(.modal-card.tutorial-card) { padding: 0.8rem 1rem; width: min(100%, 34rem); }
     .instructions-actions { display: flex; gap: 0.5rem; }
     h1 { margin: 0.3rem 0 0.85rem; padding-bottom: 0.7rem; border-bottom: 1px solid var(--ink); font: 700 2.15rem/1 var(--display); letter-spacing: -0.035em; }

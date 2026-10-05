@@ -35,7 +35,7 @@
     function focusableElements() {
         if (!dialog) return [];
         return [...dialog.querySelectorAll("button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex='-1'])")]
-            .filter((node) => node.getClientRects().length > 0);
+            .filter((node) => node.getClientRects().length > 0 && !node.closest("[inert]"));
     }
 
     $: if (show && !wasShown) {

@@ -41,6 +41,6 @@ export const tutorialLesson = {
         shortcut("e3f2", "", "Press E again to replay the next move: the queen capture."),
         key("P", "Type P to finish BLEEP."),
         submit("Press Enter or ↵ to submit BLEEP."),
-        { kind: "complete", text: "Word and moves solved. You're ready for today's Chortle!" },
+        { kind: "complete", text: "Word and moves solved! You can replay the tutorial anytime from the ? at the top right." },
     ],
 };

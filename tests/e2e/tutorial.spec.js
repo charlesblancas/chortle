@@ -38,7 +38,9 @@ test("iPhone 15 gameplay interactive tutorial uses real feedback without changin
             else await page.keyboard.press(step.key.toLowerCase());
         } else if (step.kind === "undo") {
             await expect(tutorial.locator(".practice-row").last().locator(".letter")).toHaveText(["B", "L", "E", "E", "D"]);
-            await tutorial.getByRole("button", { name: "Undo", exact: true }).click();
+            await expect(tutorial.getByRole("button", { name: "Undo", exact: true })).toHaveCount(0);
+            if (isMobile) await tutorial.getByRole("button", { name: /^Backspace/ }).click();
+            else await page.keyboard.press("Backspace");
         } else if (step.kind === "submit") {
             await expect(tutorial.getByRole("button", { name: "Submit guess", exact: true })).toHaveCount(0);
             if (isMobile) await tutorial.getByRole("button", { name: /^Enter: submit guess/ }).click();

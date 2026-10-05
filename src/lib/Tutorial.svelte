@@ -8,6 +8,7 @@
     import { tutorialLesson as lesson } from "./tutorialLesson.js";
 
     export let pieceSet = "cburnett";
+    export let active = true;
     const dispatch = createEventDispatcher();
     let session = createTutorialSession(lesson);
     let state = session.getSnapshot();
@@ -33,6 +34,7 @@
     }
     function input(key) { update(session.key(key)); }
     function handleKey(event) {
+        if (!active) return;
         if (event.key === "Escape") return;
         if (!shouldHandleWordGameKey(event)) return;
         event.preventDefault();
@@ -80,8 +82,6 @@
             <button type="button" on:click={restart}>Replay tutorial</button>
         {:else if explanation}
             <button type="button" on:click={() => update(session.next())}>{step.kind === "new-row" ? "Try the next guess" : "Continue"}</button>
-        {:else if step.kind === "undo"}
-            <button type="button" on:click={() => input("Backspace")}>Undo</button>
         {:else}
             <span>{step.kind === "submit" ? "Use Enter or the ↵ key above" : "Follow the instruction above"}</span>
         {/if}
