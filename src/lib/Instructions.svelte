@@ -50,7 +50,7 @@
     });
 </script>
 
-<Modal show={$showInstructions} labelledBy={confirmClose ? "tutorial-close-title" : tutorial ? "tutorial-title" : "instructions-title"} cardClass={tutorial ? "tutorial-card" : "instructions-card"}>
+<Modal show={$showInstructions} labelledBy={confirmClose ? "tutorial-close-title" : tutorial ? "tutorial-title" : "instructions-title"} cardClass={tutorial ? "tutorial-card" : "instructions-card"} onClose={confirmClose ? null : requestClose} closeLabel={tutorial ? "Close tutorial" : "Close instructions"}>
     {#if confirmClose}
         <section class="close-confirmation" aria-labelledby="tutorial-close-title">
             <h1 id="tutorial-close-title">Leave the tutorial?</h1>
@@ -66,7 +66,6 @@
         <Tutorial {pieceSet} active={!confirmClose} on:complete={completeTutorial} on:close={requestClose} on:instructions={() => tutorial = false} />
     {:else}
     <div class="instructions-content">
-        <button class="close" type="button" aria-label="Close instructions" title="Close instructions" on:click={requestClose}>×</button>
         <p class="eyebrow">How to play</p>
         <h1 id="instructions-title">Find the word through the board.</h1>
         <p class="intro">Guess the five-letter answer in four tries. You win when every letter is green and every A–H chess move is correct.</p>
@@ -116,8 +115,7 @@
     .example-tile { width: 2.75rem; height: 2.75rem; flex: 0 0 auto; overflow: hidden; border: 1px solid var(--ink); display: grid; grid-template-rows: minmax(0, 1fr) minmax(0, 0.42fr); text-align: center; }
     .example-letter { display: grid; place-items: center; background: var(--green); color: var(--panel); font: 700 1.25rem/1 var(--sans); }
     .example-move { display: grid; place-items: center; background: var(--yellow); color: var(--ink); font: 700 0.42rem/1 var(--mono); white-space: nowrap; }
-    .close { position: absolute; top: 0.55rem; right: 0.6rem; min-width: 0; width: 2.5rem; height: 2.5rem; padding: 0; border: 0; color: var(--muted); font: 400 1.45rem/1 var(--sans); }
-    .close:hover { color: var(--burgundy); background: transparent; border-color: transparent; }
+    .eyebrow { padding-right: 3rem; }
     @media (max-width: 420px) {
         :global(.modal-card.instructions-card) { display: grid; grid-template-rows: minmax(0, 1fr) auto; overflow: hidden; padding: 0; }
         .instructions-content { min-height: 0; overflow-y: auto; padding: 1rem 1rem 0.7rem; }

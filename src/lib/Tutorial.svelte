@@ -52,7 +52,6 @@
 <section class="tutorial" aria-labelledby="tutorial-title" style={`--history-height: ${state.row * 2.55}rem`}>
     <header>
         <div><p class="eyebrow">Practice edition · you play Black</p><h1 id="tutorial-title" bind:this={heading} tabindex="-1">Learn by playing.</h1></div>
-        <button type="button" class="close" aria-label="Close tutorial" on:click={() => dispatch("close")}>×</button>
     </header>
     <div class="coach" role="status" aria-live="polite" aria-atomic="true">
         <p class="progress">{step.kind === "complete" ? "Tutorial complete" : `Practice guess ${state.row + 1} of 3`}</p>
@@ -91,11 +90,10 @@
 
 <style>
     .tutorial { --guess-tile-size: 2.3rem; --guess-letter-size: 1.1rem; --guess-move-size: 0.42rem; --mobile-chess-width: min(22rem, calc(100dvh - 29rem)); --mobile-key-height: 1.8rem; display: flex; flex-direction: column; gap: 0.45rem; }
-    header { display: flex; align-items: start; justify-content: space-between; border-bottom: 1px solid var(--ink); padding-bottom: 0.4rem; }
+    header { display: flex; align-items: start; justify-content: space-between; border-bottom: 1px solid var(--ink); padding-bottom: 0.4rem; padding-right: 3rem; }
     h1 { margin: 0.18rem 0 0; font: 700 1.7rem/1 var(--display); letter-spacing: -0.035em; }
     h1:focus { outline: none; }
     .eyebrow, .progress { margin: 0; font: 700 0.6rem/1.3 var(--sans); text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
-    .close { width: 2.5rem; height: 2.5rem; padding: 0; min-width: 0; font-size: 1.4rem; }
     .coach { min-height: 5.4rem; padding: 0.3rem 0; }
     .coach p:not(.progress) { margin: 0.25rem 0 0; font-size: 0.9rem; line-height: 1.3; }
     .error { color: var(--burgundy); }

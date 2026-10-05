@@ -4,6 +4,8 @@
     export let show;
     export let labelledBy = "";
     export let cardClass = "";
+    export let onClose = null;
+    export let closeLabel = "Close dialog";
     let dialog;
     let wasShown = false;
     let priorFocus;
@@ -74,12 +76,15 @@
 {#if show}
     <div class="modal-layer">
         <div class={`modal-card ${cardClass}`} bind:this={dialog} role="dialog" aria-modal="true" aria-labelledby={labelledBy || undefined} aria-label={labelledBy ? undefined : "Chortle dialog"} tabindex="-1">
+            {#if onClose}<button type="button" class="modal-close" aria-label={closeLabel} on:click={onClose}>×</button>{/if}
             <slot />
         </div>
     </div>
 {/if}
 
 <style>
+    .modal-close { position: absolute; top: 0.55rem; right: 0.6rem; z-index: 3; width: 2.75rem; height: 2.75rem; min-width: 0; padding: 0; border: 0; background: transparent; color: var(--muted); font: 400 1.45rem/1 var(--sans); }
+    .modal-close:hover { background: transparent; border-color: transparent; color: var(--burgundy); }
     .modal-layer { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; overflow-y: auto; overscroll-behavior: contain; padding: 1rem; background: rgba(38, 50, 56, 0.18); }
     .modal-card {
         position: relative;

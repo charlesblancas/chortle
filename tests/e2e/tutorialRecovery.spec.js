@@ -2,14 +2,18 @@ import { test, expect } from "@playwright/test";
 
 test("iPhone 15 gameplay tutorial recovers from an unexpected move and contains keyboard focus", async ({ page, isMobile }) => {
     await page.goto("/?day=32");
+    const instructionsClose = await page.getByRole("dialog").getByRole("button", { name: "Close instructions" }).boundingBox();
     await page.getByRole("button", { name: "Play tutorial", exact: true }).click();
+    const tutorialClose = await page.getByRole("button", { name: "Close tutorial" }).boundingBox();
+    expect(tutorialClose.width).toBe(instructionsClose.width);
+    expect(tutorialClose.height).toBe(instructionsClose.height);
     const tutorial = page.locator(".tutorial");
     await expect(tutorial.getByRole("heading", { name: "Learn by playing." })).toBeFocused();
     await expect(tutorial.getByRole("button", { name: "Back", exact: true })).toBeDisabled();
     await page.keyboard.press("Shift+Tab");
     await expect(tutorial.getByRole("button", { name: "Written instructions" })).toBeFocused();
     await page.keyboard.press("Tab");
-    await expect(tutorial.getByRole("button", { name: "Close tutorial" })).toBeFocused();
+    await expect(page.getByRole("button", { name: "Close tutorial" })).toBeFocused();
     const duplicateIds = await page.evaluate(() => {
         // Chessground repeats an identical internal SVG blur filter. Check
         // application IDs, particularly the accessible board headings/help.
