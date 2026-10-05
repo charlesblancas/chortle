@@ -3,13 +3,25 @@
     import { showInstructions } from "../stores";
     import { onMount } from "svelte";
     import { safeStorage } from "./gameStorage";
+    import Tutorial from "./Tutorial.svelte";
+
+    export let pieceSet = "cburnett";
+    let tutorial = false;
 
     const INSTRUCTIONS_SEEN_KEY = "chortle:instructions-seen-v1";
+    const TUTORIAL_COMPLETED_KEY = "chortle:tutorial-completed-v1";
     const storage = safeStorage();
-    const closeInstructions = () => showInstructions.set(false);
+    const closeInstructions = () => { tutorial = false; showInstructions.set(false); };
+    const completeTutorial = () => {
+        storage.setItem(TUTORIAL_COMPLETED_KEY, "1");
+        storage.setItem(INSTRUCTIONS_SEEN_KEY, "1");
+    };
     onMount(() => {
         const seenBefore = storage.getItem(INSTRUCTIONS_SEEN_KEY);
-        if (seenBefore) {
+        if (!storage.getItem(TUTORIAL_COMPLETED_KEY)) {
+            tutorial = true;
+            showInstructions.set(true);
+        } else if (seenBefore) {
             showInstructions.set(false);
         } else {
             storage.setItem(INSTRUCTIONS_SEEN_KEY, "1");
@@ -21,7 +33,10 @@
     });
 </script>
 
-<Modal show={$showInstructions} labelledBy="instructions-title" cardClass="instructions-card">
+<Modal show={$showInstructions} labelledBy={tutorial ? "tutorial-title" : "instructions-title"} cardClass={tutorial ? "tutorial-card" : "instructions-card"}>
+    {#if tutorial}
+        <Tutorial {pieceSet} on:complete={completeTutorial} on:close={closeInstructions} on:instructions={() => tutorial = false} />
+    {:else}
     <div class="instructions-content">
         <button class="close" type="button" aria-label="Close instructions" title="Close instructions" on:click={closeInstructions}>×</button>
         <p class="eyebrow">How to play</p>
@@ -46,10 +61,13 @@
             <p>Right letter; move belongs elsewhere in the chess line.</p>
         </div>
     </div>
-    <div class="instructions-actions"><button on:click={closeInstructions}>Understood</button></div>
+    <div class="instructions-actions"><button on:click={() => tutorial = true}>Play tutorial</button><button on:click={closeInstructions}>Understood</button></div>
+    {/if}
 </Modal>
 
 <style>
+    :global(.modal-card.tutorial-card) { padding: 0.8rem 1rem; width: min(100%, 34rem); }
+    .instructions-actions { display: flex; gap: 0.5rem; }
     h1 { margin: 0.3rem 0 0.85rem; padding-bottom: 0.7rem; border-bottom: 1px solid var(--ink); font: 700 2.15rem/1 var(--display); letter-spacing: -0.035em; }
     .eyebrow { margin: 0; color: var(--burgundy); font: 700 0.7rem/1 var(--sans); letter-spacing: 0.1em; text-transform: uppercase; }
     .intro { color: var(--muted); margin: 0 0 1.1rem; font-style: italic; }

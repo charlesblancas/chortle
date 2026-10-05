@@ -59,7 +59,10 @@
         if (!focusable.length) { event.preventDefault(); return; }
         const first = focusable[0];
         const last = focusable.at(-1);
-        const focusIsDialog = document.activeElement === dialog;
+        // A programmatically focused heading establishes the same starting
+        // context as the dialog itself; it isn't in the normal tab order.
+        const focusIsDialog = document.activeElement === dialog
+            || (dialog.contains(document.activeElement) && !focusable.includes(document.activeElement));
         const focusIsOutside = !dialog.contains(document.activeElement);
         if (event.shiftKey && (focusIsDialog || document.activeElement === first || focusIsOutside)) { event.preventDefault(); last.focus(); }
         else if (!event.shiftKey && (focusIsDialog || document.activeElement === last || focusIsOutside)) { event.preventDefault(); first.focus(); }

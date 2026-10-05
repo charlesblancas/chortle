@@ -368,6 +368,8 @@ test("blocked browser storage does not prevent the game from loading", async ({ 
         Object.defineProperty(window, "sessionStorage", { configurable: true, get: denied });
     });
     await page.goto("/");
+    await expect(page.getByRole("heading", { name: "Learn by playing." })).toBeVisible();
+    await page.getByRole("button", { name: "Close tutorial" }).click();
     await expect(page.getByRole("region", { name: /Chess board/i })).toBeVisible();
     expect(pageErrors).toEqual([]);
 });

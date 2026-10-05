@@ -268,7 +268,7 @@
     }
 </script>
 
-<Instructions />
+<Instructions {pieceSet} />
 <div class="meta"><span>Puzzle {String(selectedDay).padStart(4, "0")}</span><span>{dateLabel}</span><span>Attempt {currentRow + 1}/{ROWS}</span></div>
 <GameOver word={answer} {statuses} {guesses} {actionHistory} {solutionMoves} {solved} {extraMoves} day={selectedDay} attempts={currentRow + 1} maxAttempts={ROWS} {solutionViewing} on:viewSolution={openSolution} on:reset={resetDebugGame} />
 <div class="game-play" class:history-compact={currentRow > 0} class:four-guesses={ROWS === 4} class:solution-board={$gameOver}>
@@ -281,10 +281,10 @@
     </div>
     <GameError {message} />
     {#if $gameOver}
-        <SolutionViewer fen={game.fen} movesString={game.moves} {pieceSet} {replayStateKey} interactive={solutionViewing} on:close={closeSolution} />
+        <SolutionViewer fen={game.fen} movesString={game.moves} {pieceSet} {replayStateKey} interactive={solutionViewing && !$showInstructions} on:close={closeSolution} />
     {:else}
         <div class="live-play">
-            <Chess bind:this={gameBoard} fen={game.fen} movesString={game.moves} {actions} {mated} {terminal} {pieceSet} disabled={mated || terminal || engineThinking || promotionPending || guesses[currentRow].length >= 5} {highlightFile} on:move={chessLetter} on:resolve={resolveChessMove} on:thinking={(event) => engineThinking = event.detail.active} on:promotion={handlePromotion} on:preview={(event) => previewLetter = event.detail.letter} />
+            <Chess bind:this={gameBoard} fen={game.fen} movesString={game.moves} {actions} {mated} {terminal} {pieceSet} disabled={$showInstructions || mated || terminal || engineThinking || promotionPending || guesses[currentRow].length >= 5} {highlightFile} on:move={chessLetter} on:resolve={resolveChessMove} on:thinking={(event) => engineThinking = event.detail.active} on:promotion={handlePromotion} on:preview={(event) => previewLetter = event.detail.letter} />
             {#if guesses[currentRow].length >= 5 && !$gameOver}<p class="row-ready" class:message-active={Boolean(message)} aria-hidden={Boolean(message)}>Row complete · press Enter to submit or Backspace to revise.</p>{/if}
             <p class="rule">A–H are played from the board.</p>
             <Keyboard {keyStatuses} on:key={(event) => input(event.detail.key)} />

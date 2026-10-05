@@ -6,6 +6,9 @@ export default defineConfig({
     use: {
         baseURL: "http://127.0.0.1:4173",
         trace: "retain-on-failure",
+        // Gameplay regressions start after tutorial onboarding. Dedicated
+        // onboarding tests override this with a fresh browser profile.
+        storageState: { cookies: [], origins: [{ origin: "http://127.0.0.1:4173", localStorage: [{ name: "chortle:tutorial-completed-v1", value: "1" }] }] },
     },
     webServer: {
         command: process.env.PREVIEW
