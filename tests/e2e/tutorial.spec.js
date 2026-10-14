@@ -6,6 +6,9 @@ test.afterEach(async ({ page }, testInfo) => {
 });
 
 test("iPhone 15 gameplay interactive tutorial uses real feedback without changing daily progress", async ({ page, isMobile }, testInfo) => {
+    // This exercises the complete multi-guess lesson; WebKit can exceed 30s
+    // when the full browser suite is sharing six workers.
+    test.setTimeout(60_000);
     await page.goto("/?day=32");
     await page.evaluate(() => localStorage.setItem("chortle:line-invitation-v1", "1"));
     const tutorial = page.locator(".tutorial");

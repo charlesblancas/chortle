@@ -3,6 +3,9 @@ import { defineConfig, devices } from "@playwright/test";
 export default defineConfig({
     testDir: "./tests/e2e",
     timeout: 30_000,
+    // Each browser can start a WASM chess engine. Bound concurrent workers so
+    // the full mobile lesson/layout flows are not starved by parallel searches.
+    workers: 4,
     use: {
         baseURL: "http://127.0.0.1:4173",
         trace: "retain-on-failure",

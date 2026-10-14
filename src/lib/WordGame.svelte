@@ -53,6 +53,7 @@
     let promotionPending = false;
     let solutionViewing = false;
     let hydrated = false;
+    let restoredCompleted = false;
     let autoResultSubscription;
     const dateLabel = new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "long", year: "numeric" }).format(new Date());
     $: storageKey = gameStorageKey(selectedDay, game) + (lineMode ? ":line" : "");
@@ -88,6 +89,7 @@
         if (!fixture) {
             const saved = readSavedGame(storage, storageKey);
             if (saved) {
+                restoredCompleted = saved.completed;
                 ROWS = saved.guesses.length;
                 guesses = saved.guesses;
                 statuses = saved.statuses;
@@ -311,7 +313,7 @@
     }
 </script>
 
-<Instructions {pieceSet} />
+<Instructions {pieceSet} canOfferInvitation={hydrated && !restoredCompleted && !fixture?.autoSubmit} />
 <div class="meta"><span>Puzzle {String(selectedDay).padStart(4, "0")}</span><span>{dateLabel}</span><span>Attempt {currentRow + 1}/{ROWS}</span></div>
 <GameOver word={answer} {statuses} {guesses} {actionHistory} {solutionMoves} {solved} {extraMoves} {lineMode} day={selectedDay} attempts={currentRow + 1} maxAttempts={ROWS} {solutionViewing} on:viewSolution={openSolution} on:reset={resetDebugGame} />
 <div class="game-play" class:line-mode={lineMode} class:history-compact={currentRow > 0} class:four-guesses={ROWS === 4} class:solution-board={$gameOver}>

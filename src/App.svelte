@@ -4,6 +4,8 @@
     import { fixtureById } from "./fixtures";
     import { showInstructions } from "./stores";
     import { safeStorage } from "./lib/gameStorage";
+    import { preferredGameMode } from "./lib/gameMode.js";
+    let mode = preferredGameMode();
 
     const fixture = import.meta.env.DEV ? fixtureById(new URLSearchParams(window.location.search).get("fixture")) : null;
     const dayOverride = import.meta.env.DEV ? Number(new URLSearchParams(window.location.search).get("day")) : NaN;
@@ -32,8 +34,9 @@
         <button class="help action-button" type="button" aria-label={$showInstructions ? "Close instructions" : "Show instructions"} title={$showInstructions ? "Close instructions" : "Show instructions"} on:click={(event) => { toggleInstructions(); event.currentTarget.blur(); }}><span class="help-mark" aria-hidden="true">?</span></button>
     </header>
     {#if import.meta.env.DEV}<DebugFixtures selected={fixture?.id || ""} {pieceSet} on:pieceSet={selectPieceSet} />{/if}
-    <WordGame {fixture} {dayOverride} {pieceSet} />
+    {#key mode}<WordGame {fixture} {dayOverride} {pieceSet} />{/key}
 </main>
+<svelte:window on:game-mode-changed={(event) => mode = event.detail} />
 
 <style>
     main { width: min(calc(100% - 2rem), 39rem); margin: 0 auto; padding: 0.45rem 0.35rem 0; }

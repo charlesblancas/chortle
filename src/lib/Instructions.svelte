@@ -4,9 +4,10 @@
     import { onMount, tick } from "svelte";
     import { safeStorage } from "./gameStorage";
     import Tutorial from "./Tutorial.svelte";
-    import { preferredGameMode, saveGameMode } from "./gameMode.js";
+    import { preferredGameMode, switchGameMode } from "./gameMode.js";
 
     export let pieceSet = "cburnett";
+    export let canOfferInvitation = false;
     let tutorial = false;
     let invitation = false;
     const INVITATION_SEEN_KEY = "chortle:line-invitation-v1";
@@ -23,6 +24,10 @@
     const INSTRUCTIONS_SEEN_KEY = "chortle:instructions-seen-v1";
     const TUTORIAL_COMPLETED_KEY = "chortle:tutorial-completed-v1";
     const storage = safeStorage();
+    $: if (invitation && canOfferInvitation) {
+        storage.setItem(INVITATION_SEEN_KEY, "1");
+        showInstructions.set(true);
+    }
     const closeInstructions = () => { confirmClose = false; tutorial = false; invitation = false; showInstructions.set(false); };
     const completeTutorial = () => {
         storage.setItem(TUTORIAL_COMPLETED_KEY, "1");
@@ -49,8 +54,7 @@
             showInstructions.set(true);
         } else if (seenBefore) {
             invitation = !lineMode && !storage.getItem(INVITATION_SEEN_KEY);
-            if (invitation) storage.setItem(INVITATION_SEEN_KEY, "1");
-            showInstructions.set(invitation);
+            showInstructions.set(invitation && canOfferInvitation);
         } else {
             storage.setItem(INSTRUCTIONS_SEEN_KEY, "1");
             showInstructions.set(true);
@@ -80,7 +84,7 @@
             <p>I’m trying a new mode: I tell you how many chess moves you need, but you have to play that many each guess.</p>
             <p>Then fit their letters into your word, in order.</p>
             <p class="feedback-note">Give it a try and let me know how it goes. Open to feedback!</p>
-            <div class="invitation-actions"><a class="mode-action primary" href={modeUrl("line")} on:click={() => saveGameMode("line")}>Try Line mode</a><button type="button" on:click={closeInstructions}>Not now</button></div>
+            <div class="invitation-actions"><a class="mode-action primary" href={modeUrl("line")} on:click={(event) => switchGameMode(event, "line")}>Try Line mode</a><button type="button" on:click={closeInstructions}>Not now</button></div>
         </section>
     {:else if tutorial}
         <Tutorial {pieceSet} active={!confirmClose} on:complete={completeTutorial} on:close={requestClose} on:instructions={() => tutorial = false} />
@@ -111,7 +115,7 @@
             <p class="eyebrow">Experimental</p>
             <h2 id="mode-panel-title">{lineMode ? "You’re playing Line mode" : "Try Line mode"}</h2>
             <p>Know the move count. Play that many moves, then fit their letters into your word in order.</p>
-            <a class="mode-action" href={modeUrl(lineMode ? "normal" : "line")} on:click={() => saveGameMode(lineMode ? "normal" : "line")}>{lineMode ? "Switch to normal mode" : "Try Line mode"}</a>
+            <a class="mode-action" href={modeUrl(lineMode ? "normal" : "line")} on:click={(event) => switchGameMode(event, lineMode ? "normal" : "line")}>{lineMode ? "Switch to normal mode" : "Try Line mode"}</a>
         </section>
     </div>
     <div class="instructions-actions"><button on:click={() => tutorial = true}>Play tutorial</button><button on:click={requestClose}>Understood</button></div>

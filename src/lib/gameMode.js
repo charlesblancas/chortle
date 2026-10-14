@@ -7,6 +7,14 @@ export function saveGameMode(mode) {
     try { safeStorage().setItem(MODE_PREFERENCE_KEY, sessionMode); } catch { /* Optional preference. */ }
 }
 
+export function switchGameMode(event, mode) {
+    // Remount in this tab rather than throwing away the storage fallback on reload.
+    saveGameMode(mode);
+    if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+    event.preventDefault();
+    window.dispatchEvent(new CustomEvent('game-mode-changed', { detail: mode }));
+}
+
 export function preferredGameMode() {
     const url = new URL(window.location.href);
     const legacy = url.searchParams.get('mode');
