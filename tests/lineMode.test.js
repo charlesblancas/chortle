@@ -35,7 +35,7 @@ test("partial queued saves restore only in Line mode and reject invalid placemen
     assert.equal(normalizeSavedGame({ ...saved, guesses: ["SF", "", "", ""] }), null);
     assert.equal(normalizeSavedGame({ ...saved, mode: "other" }), null);
 });
-test("nonwords and duplicate-file queues remain submittable", () => {
+test("queue validation handles repeated files independently of dictionary validation", () => {
     const repeated = [..."CCCCC"].map((letter) => ({ letter }));
     assert.equal(lineGuessError("CCCCC", repeated, 5), "");
     assert.equal(placeQueuedLetter("CCCC", repeated, "C"), "CCCCC");

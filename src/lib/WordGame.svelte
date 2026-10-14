@@ -256,7 +256,7 @@
             if (error) { message = error; return; }
         }
         if (guess.length < 5) { message = "Not enough letters"; return; }
-        if (!lineMode && !possibilities.includes(guess.toLowerCase())) { message = `${guess} not in word list`; return; }
+        if (!possibilities.includes(guess.toLowerCase())) { message = `${guess} not in word list`; return; }
         const result = scoreWord(guess, answer);
         actionHistory[currentRow] = actions.map((action) => ({ ...action }));
         actionHistory = actionHistory;
@@ -329,7 +329,7 @@
                 </div>
             {/if}
             {#if guesses[currentRow].length >= 5 && !$gameOver}<p class="row-ready" class:message-active={Boolean(message)} aria-hidden={Boolean(message)}>Row complete · press Enter to submit or Backspace to revise.</p>{/if}
-            <p class="rule">{lineMode ? "Queue moves, then place their letters in order. Nonwords allowed." : "A–H are played from the board."}</p>
+            <p class="rule">{lineMode ? "Queue moves, then place their letters in order." : "A–H are played from the board."}</p>
             <Keyboard {keyStatuses} queuedMoves={lineMode} on:key={(event) => input(event.detail.key)} />
         </div>
     {/if}

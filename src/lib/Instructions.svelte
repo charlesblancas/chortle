@@ -78,7 +78,7 @@
             <p class="eyebrow">Something new to try</p>
             <h1 id="line-invitation-title">Hey! Want to experiment?</h1>
             <p>I’m trying a new mode: I tell you how many chess moves you need, but you have to play that many each guess.</p>
-            <p>Then fit their letters into your word, in order. You can still undo.</p>
+            <p>Then fit their letters into your word, in order.</p>
             <p class="feedback-note">Give it a try and let me know how it goes. Open to feedback!</p>
             <div class="invitation-actions"><a class="mode-action primary" href={modeUrl("line")}>Try Line mode</a><button type="button" on:click={closeInstructions}>Not now</button></div>
         </section>
@@ -111,7 +111,6 @@
             <p class="eyebrow">Experimental</p>
             <h2 id="mode-panel-title">{lineMode ? "You’re playing Line mode" : "Try Line mode"}</h2>
             <p>Know the move count. Play that many moves, then fit their letters into your word in order.</p>
-            <p class="mode-detail">Undo is allowed. Nonwords count as guesses.</p>
             <a class="mode-action" href={modeUrl(lineMode ? "normal" : "line")}>{lineMode ? "Switch to normal mode" : "Try Line mode"}</a>
         </section>
     </div>
@@ -124,7 +123,6 @@
     .mode-panel { padding: 0.9rem 1rem; margin: 1rem 0 0.75rem; border: 1px solid var(--line); border-left: 3px solid var(--burgundy); }
     .mode-panel h2 { margin: 0.35rem 0; font: 700 1.25rem/1.15 var(--display); }
     .mode-panel p:not(.eyebrow) { margin: 0.4rem 0; font-size: 0.85rem; line-height: 1.4; }
-    .mode-panel .mode-detail { color: var(--muted); }
     .mode-action { display: inline-block; padding: 0.5rem 0.7rem; margin-top: 0.35rem; border: 1px solid var(--burgundy); color: var(--burgundy); font: 700 0.7rem/1.2 var(--sans); text-decoration: none; text-transform: uppercase; }
     .mode-action:hover, .mode-action.primary { background: var(--burgundy); color: var(--panel); }
     .mode-action:focus-visible { outline: 2px solid var(--burgundy); outline-offset: 3px; }

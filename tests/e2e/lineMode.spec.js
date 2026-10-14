@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { games } from "../../src/games/final_games.js";
 
-test("iPhone 15 gameplay Line mode queues, undoes, restores and submits nonwords", async ({ page, isMobile }, testInfo) => {
+test("iPhone 15 gameplay Line mode queues, undoes, restores and rejects nonwords", async ({ page, isMobile }, testInfo) => {
     await page.clock.setFixedTime(new Date(2026, 8, 32, 12));
     await page.addInitScript(() => {
         localStorage.setItem("chortle:instructions-seen-v1", "1");
@@ -52,9 +52,15 @@ test("iPhone 15 gameplay Line mode queues, undoes, restores and submits nonwords
     await expect(page.getByRole('alert')).toContainText('Place A next');
     await page.keyboard.type('zaffz');
     await page.keyboard.press('Enter');
+    await expect(page.getByRole('alert')).toContainText('not in word list');
+    await expect(page.getByText('Attempt 1/4')).toBeVisible();
+    await expect(page.getByText('Line mode · 3/3 moves', { exact: true })).toBeVisible();
+    for (let index = 0; index < 5; index++) await page.keyboard.press('Backspace');
+    await page.keyboard.type('taffy');
+    await page.keyboard.press('Enter');
     await expect(page.getByText('Attempt 2/4')).toBeVisible();
     await expect(page.getByText('Line mode · 0/3 moves', { exact: true })).toBeVisible();
-    await expect(page.locator('.guess-row').first().locator('.letter')).toHaveText(['Z', 'A', 'F', 'F', 'Z']);
+    await expect(page.locator('.guess-row').first().locator('.letter')).toHaveText(['T', 'A', 'F', 'F', 'Y']);
     await move('a1f1');
     await move('f7f2');
     await move('f1f2');
