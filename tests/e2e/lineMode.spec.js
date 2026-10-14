@@ -11,6 +11,7 @@ test("iPhone 15 gameplay Line mode queues, undoes, restores and rejects nonwords
         Object.defineProperty(navigator, 'share', { configurable: true, value: async ({ text }) => { window.__sharedResult = text; } });
     });
     await page.goto("/?day=32&mode=line");
+    await expect(page).not.toHaveURL(/mode=/);
     const current = () => page.locator('.guess-row.active-row .letter');
     const undo = page.getByRole("button", { name: "Undo move", exact: true });
     const move = async (uci) => {
@@ -32,6 +33,7 @@ test("iPhone 15 gameplay Line mode queues, undoes, restores and rejects nonwords
     await page.keyboard.press('Enter');
     await expect(page.getByRole('alert')).toContainText('Play 3 chess moves');
     await move('a1f1');
+    await expect(page.locator('.queue-notation')).toHaveText(['A1→F1']);
     await expect(current()).toHaveText(['', '', '', '', '']);
     await expect(page.locator('.guess-row.active-row .move')).toHaveText(['', '', '', '', '']);
     await page.keyboard.press('a');
@@ -61,10 +63,14 @@ test("iPhone 15 gameplay Line mode queues, undoes, restores and rejects nonwords
     await expect(page.getByText('Attempt 2/4')).toBeVisible();
     await expect(page.getByText('Line mode · 0/3 moves', { exact: true })).toBeVisible();
     await expect(page.locator('.guess-row').first().locator('.letter')).toHaveText(['T', 'A', 'F', 'F', 'Y']);
-    await move('a1f1');
-    await move('f7f2');
-    await move('f1f2');
-    await page.keyboard.type('staff');
+    await page.keyboard.type('st');
+    for (const [index, letter] of ['a', 'f', 'f'].entries()) {
+        if (isMobile) await page.getByRole('button', { name: new RegExp(`^${letter.toUpperCase()}: place a queued`) }).click();
+        else await page.keyboard.press(letter);
+        await expect(page.locator('.move-queue button[aria-label]')).toHaveCount(index + 1);
+        await expect(undo).toBeEnabled();
+    }
+    await expect(current()).toHaveText(['S', 'T', 'A', 'F', 'F']);
     await page.reload();
     await expect(current()).toHaveText(['S', 'T', 'A', 'F', 'F']);
     await expect(page.getByText('Line mode · 3/3 moves', { exact: true })).toBeVisible();
@@ -73,6 +79,7 @@ test("iPhone 15 gameplay Line mode queues, undoes, restores and rejects nonwords
     await page.getByRole('button', { name: 'Share result', exact: true }).click();
     await expect.poll(() => page.evaluate(() => window.__sharedResult)).toContain('LINE MODE');
     await page.screenshot({ path: testInfo.outputPath('line-mode-result.png') });
+    await page.evaluate(() => localStorage.setItem('chortle:game-mode-v1', 'normal'));
     await page.goto('/?day=32');
     await expect(page.getByText('Attempt 1/4')).toBeVisible();
     await expect(current()).toHaveText(['', '', '', '', '']);

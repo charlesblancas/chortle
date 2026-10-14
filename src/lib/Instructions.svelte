@@ -4,16 +4,16 @@
     import { onMount, tick } from "svelte";
     import { safeStorage } from "./gameStorage";
     import Tutorial from "./Tutorial.svelte";
+    import { preferredGameMode, saveGameMode } from "./gameMode.js";
 
     export let pieceSet = "cburnett";
     let tutorial = false;
     let invitation = false;
     const INVITATION_SEEN_KEY = "chortle:line-invitation-v1";
-    const lineMode = new URLSearchParams(window.location.search).get("mode") === "line";
+    const lineMode = preferredGameMode() === "line";
     function modeUrl(mode) {
         const url = new URL(window.location.href);
-        if (mode === "line") url.searchParams.set("mode", "line");
-        else url.searchParams.delete("mode");
+        url.searchParams.delete("mode");
         return url.pathname + url.search;
     }
     let confirmClose = false;
@@ -80,7 +80,7 @@
             <p>I’m trying a new mode: I tell you how many chess moves you need, but you have to play that many each guess.</p>
             <p>Then fit their letters into your word, in order.</p>
             <p class="feedback-note">Give it a try and let me know how it goes. Open to feedback!</p>
-            <div class="invitation-actions"><a class="mode-action primary" href={modeUrl("line")}>Try Line mode</a><button type="button" on:click={closeInstructions}>Not now</button></div>
+            <div class="invitation-actions"><a class="mode-action primary" href={modeUrl("line")} on:click={() => saveGameMode("line")}>Try Line mode</a><button type="button" on:click={closeInstructions}>Not now</button></div>
         </section>
     {:else if tutorial}
         <Tutorial {pieceSet} active={!confirmClose} on:complete={completeTutorial} on:close={requestClose} on:instructions={() => tutorial = false} />
@@ -111,7 +111,7 @@
             <p class="eyebrow">Experimental</p>
             <h2 id="mode-panel-title">{lineMode ? "You’re playing Line mode" : "Try Line mode"}</h2>
             <p>Know the move count. Play that many moves, then fit their letters into your word in order.</p>
-            <a class="mode-action" href={modeUrl(lineMode ? "normal" : "line")}>{lineMode ? "Switch to normal mode" : "Try Line mode"}</a>
+            <a class="mode-action" href={modeUrl(lineMode ? "normal" : "line")} on:click={() => saveGameMode(lineMode ? "normal" : "line")}>{lineMode ? "Switch to normal mode" : "Try Line mode"}</a>
         </section>
     </div>
     <div class="instructions-actions"><button on:click={() => tutorial = true}>Play tutorial</button><button on:click={requestClose}>Understood</button></div>

@@ -1,6 +1,7 @@
 <script>
     import Tile from "./Tile.svelte";
     import { FILE_LETTERS, chessMoveStatus } from "../gameRules";
+    import { formatUciMove } from "./chessNotation.js";
 
     export let status;
     export let word;
@@ -9,11 +10,6 @@
     export let actions = [];
     export let solutionMoves = [];
 
-    function formatMove(uci = "") {
-        if (!uci) return "";
-        const promotion = uci[4] ? `=${uci[4].toUpperCase()}` : "";
-        return `${uci.slice(0, 2).toUpperCase()}→${uci.slice(2, 4).toUpperCase()}${promotion}`;
-    }
 
     // A scored row is the only kind allowed to show feedback. This also keeps
     // restored or debug rows neutral when they contain an in-progress move.
@@ -30,7 +26,7 @@
             }
             const action = actions[actionIndex++];
             return {
-                move: formatMove(action?.uci),
+                move: formatUciMove(action?.uci),
                 moveStatus: submitted ? chessMoveStatus(action, letterStatus, solutionMoves) : -1
             };
         });

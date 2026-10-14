@@ -13,7 +13,9 @@
     import { browserStorage, gameStorageKey, readSavedGame, removeSavedGame, safeStorage, writeSavedGame } from "./gameStorage";
     import { onMount, tick } from "svelte";
     import { placedMoveCount, placeQueuedLetter, undoQueuedMove, lineGuessError, requiredLineMoves } from "./lineMode.js";
-    const lineMode = new URLSearchParams(window.location.search).get("mode") === "line";
+    import { preferredGameMode } from "./gameMode.js";
+    import { formatUciMove } from "./chessNotation.js";
+    const lineMode = preferredGameMode() === "line";
 
     export let fixture = null;
     export let dayOverride = NaN;
@@ -162,7 +164,14 @@
                 if (lineMode) {
                     const placed = placeQueuedLetter(guesses[currentRow], actions, key);
                     if (placed !== null) { guesses[currentRow] = placed; guesses = guesses; saveGame(); }
-                    else message = actions[placedMoveCount(guesses[currentRow])] ? `Place ${actions[placedMoveCount(guesses[currentRow])].letter} next.` : "Play a chess move to queue its letter.";
+                    else if (placedMoveCount(guesses[currentRow]) === actions.length && actions.length < requiredMoves) {
+                        const knownMove = confirmedMoveShortcut(key, actions, guesses, statuses, actionHistory);
+                        if (knownMove && gameBoard?.playKnownMove(knownMove)) {
+                            guesses[currentRow] += key;
+                            guesses = guesses;
+                            if (!actions.at(-1)?.pending) saveGame();
+                        } else message = "Play a chess move to queue its letter.";
+                    } else message = actions[placedMoveCount(guesses[currentRow])] ? `Place ${actions[placedMoveCount(guesses[currentRow])].letter} next.` : "All required moves are queued.";
                     return;
                 }
                 const knownMove = confirmedMoveShortcut(key, actions, guesses, statuses, actionHistory);
@@ -323,7 +332,7 @@
                 <div class="line-controls" aria-label="Line mode move queue">
                     <span class="line-count" bind:this={lineStatus} tabindex="-1" role="status">Line mode · {actions.length}/{requiredMoves} moves</span>
                     <div class="move-queue">
-                        {#each actions as action, index}<button type="button" aria-label={`Place queued ${action.letter}, move ${index + 1}`} disabled={index !== placedMoveCount(guesses[currentRow]) || guesses[currentRow].length >= 5 || engineThinking || promotionPending || $showInstructions} on:click={(event) => { input(action.letter); event.currentTarget.blur(); }}>{action.letter}</button>{/each}
+                        {#each actions as action, index}<button type="button" aria-label={`Place queued ${action.letter}, move ${index + 1}, ${formatUciMove(action.uci)}`} title={formatUciMove(action.uci)} disabled={index !== placedMoveCount(guesses[currentRow]) || guesses[currentRow].length >= 5 || engineThinking || promotionPending || $showInstructions} on:click={(event) => { input(action.letter); event.currentTarget.blur(); }}><span>{action.letter}</span><small class="queue-notation">{formatUciMove(action.uci)}</small></button>{/each}
                         <button type="button" class="undo-move" disabled={!actions.length || engineThinking || promotionPending || $showInstructions} on:click={(event) => { undoBoardMove(); event.currentTarget.blur(); }}>Undo move</button>
                     </div>
                 </div>
@@ -340,6 +349,8 @@
     .line-controls { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 0.4rem; margin: 0.3rem auto; font-size: 0.7rem; }
     .move-queue { display: flex; gap: 0.2rem; align-items: center; }
     .move-queue button { min-width: 2rem; min-height: 2rem; padding: 0.2rem 0.35rem; font-size: 0.7rem; }
+    .move-queue button:not(.undo-move) { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.2rem; min-height: 2.5rem; }
+    .queue-notation { font: 700 0.48rem/1 var(--mono); white-space: nowrap; }
     .line-count { color: var(--burgundy); font-weight: bold; }
     .line-count:focus { outline: none; }
     .line-mode .live-play :global(.chess) { width: min(100%, max(7rem, calc(var(--mobile-chess-width) - 2.5rem))); }

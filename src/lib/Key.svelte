@@ -12,7 +12,7 @@
         ? `Enter: submit guess, ${statusLabel}`
         : key === "Backspace"
             ? `Backspace: remove the last letter, ${statusLabel}`
-            : `${key.toUpperCase()}${boardKey ? queuedMoves ? ": place the next queued chess letter" : ": choose this chess file on the board" : ""}, ${statusLabel}`;
+            : `${key.toUpperCase()}${boardKey ? queuedMoves ? ": place a queued letter or replay a confirmed chess move" : ": choose this chess file on the board" : ""}, ${statusLabel}`;
 
     const dispatch = createEventDispatcher();
 
