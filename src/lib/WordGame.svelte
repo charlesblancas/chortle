@@ -12,6 +12,8 @@
     import { FILE_LETTERS, confirmedMoveShortcut, dailyPuzzleIndex, isExtraPlayerMove, isSolvedGuess, playerMoves, scoreWord, shouldHandleWordGameKey } from "../gameRules";
     import { browserStorage, gameStorageKey, readSavedGame, removeSavedGame, safeStorage, writeSavedGame } from "./gameStorage";
     import { onMount, tick } from "svelte";
+    import { placedMoveCount, placeQueuedLetter, undoQueuedMove, lineGuessError, requiredLineMoves } from "./lineMode.js";
+    const lineMode = new URLSearchParams(window.location.search).get("mode") === "line";
 
     export let fixture = null;
     export let dayOverride = NaN;
@@ -32,6 +34,7 @@
     }
     let previewLetter = "";
     let gameBoard;
+    let lineStatus;
     let keyStatuses = {};
     let message = "";
     let highlightFile = "";
@@ -50,7 +53,8 @@
     let hydrated = false;
     let autoResultSubscription;
     const dateLabel = new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "long", year: "numeric" }).format(new Date());
-    $: storageKey = gameStorageKey(selectedDay, game);
+    $: storageKey = gameStorageKey(selectedDay, game) + (lineMode ? ":line" : "");
+    $: requiredMoves = requiredLineMoves(answer);
     $: replayStateKey = `chortle:replay-state:${fixture?.id || storageKey}`;
     $: solutionViewKey = `chortle:replay-open:${fixture?.id || storageKey}`;
 
@@ -74,7 +78,7 @@
 
     function saveGame(completed = $gameOver) {
         if (!hydrated || fixture) return;
-        writeSavedGame(storage, storageKey, { guesses, statuses, currentRow, actions, actionHistory, keyStatuses, mated, terminal, solved, completed, extraMoves });
+        writeSavedGame(storage, storageKey, { guesses, statuses, currentRow, actions, actionHistory, keyStatuses, mated, terminal, solved, completed, extraMoves, ...(lineMode ? { mode: "line" } : {}) });
     }
 
     onMount(() => {
@@ -144,7 +148,7 @@
         // board must stay locked then, but ordinary word letters still need
         // to be completable. Only a player who is mated must undo before
         // entering anything else.
-        if (mated && key !== "Backspace") {
+        if (mated && !lineMode && key !== "Backspace") {
             clearGuidance();
             message = "Position ended. Press Backspace to revise your last move.";
             return;
@@ -155,6 +159,12 @@
             key = key.toUpperCase();
             if (FILE_LETTERS.includes(key)) {
                 if (guesses[currentRow].length >= 5) return;
+                if (lineMode) {
+                    const placed = placeQueuedLetter(guesses[currentRow], actions, key);
+                    if (placed !== null) { guesses[currentRow] = placed; guesses = guesses; saveGame(); }
+                    else message = actions[placedMoveCount(guesses[currentRow])] ? `Place ${actions[placedMoveCount(guesses[currentRow])].letter} next.` : "Play a chess move to queue its letter.";
+                    return;
+                }
                 const knownMove = confirmedMoveShortcut(key, actions, guesses, statuses, actionHistory);
                 if (knownMove && gameBoard?.playKnownMove(knownMove)) return;
                 message = `${key} comes from a move starting on the ${key}-file.`;
@@ -178,15 +188,16 @@
     }
 
     function chessLetter(event) {
-        if (guesses[currentRow].length >= 5) return;
+        if (lineMode ? actions.length >= requiredMoves : guesses[currentRow].length >= 5) return;
         previewLetter = "";
         if (isExtraPlayerMove(game.moves, actions, event.detail.uci)) extraMoves += 1;
         actions = [...actions, event.detail];
         mated = event.detail.mated || false;
         terminal = event.detail.terminal || false;
-        guesses[currentRow] += event.detail.letter;
+        if (!lineMode) guesses[currentRow] += event.detail.letter;
         guesses = guesses;
         if (!event.detail.pending) saveGame();
+        if (lineMode && !event.detail.pending) focusLineInput();
     }
 
     function resolveChessMove(event) {
@@ -198,6 +209,13 @@
         mated = event.detail.mated || false;
         terminal = event.detail.terminal || false;
         saveGame();
+        if (lineMode) focusLineInput();
+    }
+
+    function focusLineInput() {
+        // A keyboard move can leave focus on a square button. Once committed,
+        // give letter input a neutral focus target without changing the selection flow.
+        if (document.activeElement?.closest('.square-controls')) tick().then(() => lineStatus?.focus());
     }
 
     function handlePromotion(event) {
@@ -207,10 +225,10 @@
     function undo() {
         previewLetter = "";
         const guess = guesses[currentRow];
-        if (!guess) return;
+        if (!guess) { if (lineMode) undoBoardMove(); return; }
         const letter = guess.at(-1);
         guesses[currentRow] = guess.slice(0, -1);
-        if (FILE_LETTERS.includes(letter)) {
+        if (!lineMode && FILE_LETTERS.includes(letter)) {
             actions = actions.slice(0, -1);
             mated = false;
             terminal = false;
@@ -219,10 +237,26 @@
         saveGame();
     }
 
+    function undoBoardMove() {
+        if (engineThinking || promotionPending || $showInstructions || $gameOver) return;
+        const revised = undoQueuedMove(guesses[currentRow], actions);
+        guesses[currentRow] = revised.word;
+        guesses = guesses;
+        actions = revised.actions;
+        mated = false;
+        terminal = false;
+        previewLetter = "";
+        saveGame();
+    }
+
     function submit() {
         const guess = guesses[currentRow];
+        if (lineMode) {
+            const error = lineGuessError(guess, actions, requiredMoves);
+            if (error) { message = error; return; }
+        }
         if (guess.length < 5) { message = "Not enough letters"; return; }
-        if (!possibilities.includes(guess.toLowerCase())) { message = `${guess} not in word list`; return; }
+        if (!lineMode && !possibilities.includes(guess.toLowerCase())) { message = `${guess} not in word list`; return; }
         const result = scoreWord(guess, answer);
         actionHistory[currentRow] = actions.map((action) => ({ ...action }));
         actionHistory = actionHistory;
@@ -270,8 +304,8 @@
 
 <Instructions {pieceSet} />
 <div class="meta"><span>Puzzle {String(selectedDay).padStart(4, "0")}</span><span>{dateLabel}</span><span>Attempt {currentRow + 1}/{ROWS}</span></div>
-<GameOver word={answer} {statuses} {guesses} {actionHistory} {solutionMoves} {solved} {extraMoves} day={selectedDay} attempts={currentRow + 1} maxAttempts={ROWS} {solutionViewing} on:viewSolution={openSolution} on:reset={resetDebugGame} />
-<div class="game-play" class:history-compact={currentRow > 0} class:four-guesses={ROWS === 4} class:solution-board={$gameOver}>
+<GameOver word={answer} {statuses} {guesses} {actionHistory} {solutionMoves} {solved} {extraMoves} {lineMode} day={selectedDay} attempts={currentRow + 1} maxAttempts={ROWS} {solutionViewing} on:viewSolution={openSolution} on:reset={resetDebugGame} />
+<div class="game-play" class:line-mode={lineMode} class:history-compact={currentRow > 0} class:four-guesses={ROWS === 4} class:solution-board={$gameOver}>
     <div class="guesses">
         {#each guesses as guess, index}
             <div class="guess-row" class:active-row={index === currentRow} class:history-row={index < currentRow} class:unused-row={index > currentRow}>
@@ -284,16 +318,31 @@
         <SolutionViewer fen={game.fen} movesString={game.moves} {pieceSet} {replayStateKey} interactive={solutionViewing && !$showInstructions} on:close={closeSolution} />
     {:else}
         <div class="live-play">
-            <Chess bind:this={gameBoard} fen={game.fen} movesString={game.moves} {actions} {mated} {terminal} {pieceSet} disabled={$showInstructions || mated || terminal || engineThinking || promotionPending || guesses[currentRow].length >= 5} {highlightFile} on:move={chessLetter} on:resolve={resolveChessMove} on:thinking={(event) => engineThinking = event.detail.active} on:promotion={handlePromotion} on:preview={(event) => previewLetter = event.detail.letter} />
+            <Chess bind:this={gameBoard} fen={game.fen} movesString={game.moves} {actions} {mated} {terminal} {pieceSet} disabled={$showInstructions || mated || terminal || engineThinking || promotionPending || (lineMode ? actions.length >= requiredMoves : guesses[currentRow].length >= 5)} {highlightFile} on:move={chessLetter} on:resolve={resolveChessMove} on:thinking={(event) => engineThinking = event.detail.active} on:promotion={handlePromotion} on:preview={(event) => previewLetter = lineMode ? "" : event.detail.letter} />
+            {#if lineMode}
+                <div class="line-controls" aria-label="Line mode move queue">
+                    <span class="line-count" bind:this={lineStatus} tabindex="-1" role="status">Line mode · {actions.length}/{requiredMoves} moves</span>
+                    <div class="move-queue">
+                        {#each actions as action, index}<button type="button" aria-label={`Place queued ${action.letter}, move ${index + 1}`} disabled={index !== placedMoveCount(guesses[currentRow]) || guesses[currentRow].length >= 5 || engineThinking || promotionPending || $showInstructions} on:click={(event) => { input(action.letter); event.currentTarget.blur(); }}>{action.letter}</button>{/each}
+                        <button type="button" class="undo-move" disabled={!actions.length || engineThinking || promotionPending || $showInstructions} on:click={(event) => { undoBoardMove(); event.currentTarget.blur(); }}>Undo move</button>
+                    </div>
+                </div>
+            {/if}
             {#if guesses[currentRow].length >= 5 && !$gameOver}<p class="row-ready" class:message-active={Boolean(message)} aria-hidden={Boolean(message)}>Row complete · press Enter to submit or Backspace to revise.</p>{/if}
-            <p class="rule">A–H are played from the board.</p>
-            <Keyboard {keyStatuses} on:key={(event) => input(event.detail.key)} />
+            <p class="rule">{lineMode ? "Queue moves, then place their letters in order. Nonwords allowed." : "A–H are played from the board."}</p>
+            <Keyboard {keyStatuses} queuedMoves={lineMode} on:key={(event) => input(event.detail.key)} />
         </div>
     {/if}
 </div>
 <svelte:window on:keydown={handleWindowKeydown} on:click={clearGuidance} />
 
 <style>
+    .line-controls { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 0.4rem; margin: 0.3rem auto; font-size: 0.7rem; }
+    .move-queue { display: flex; gap: 0.2rem; align-items: center; }
+    .move-queue button { min-width: 2rem; min-height: 2rem; padding: 0.2rem 0.35rem; font-size: 0.7rem; }
+    .line-count { color: var(--burgundy); font-weight: bold; }
+    .line-count:focus { outline: none; }
+    .line-mode .live-play :global(.chess) { width: min(100%, max(7rem, calc(var(--mobile-chess-width) - 2.5rem))); }
     .meta { display: flex; justify-content: center; gap: 0.55rem; padding: 0.5rem 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); color: var(--muted); font: 700 0.68rem/1 var(--mono); font-variant-numeric: tabular-nums; letter-spacing: 0.04em; text-align: center; text-transform: uppercase; }
     .meta span + span::before { content: "·"; margin-right: 0.55rem; color: var(--burgundy); }
     .rule { max-width: 30rem; margin: 0.6rem auto 0; padding-top: 0.45rem; border-top: 1px solid var(--line); text-align: center; color: var(--muted); font: 700 0.7rem/1 var(--sans); letter-spacing: 0.08em; text-transform: uppercase; }

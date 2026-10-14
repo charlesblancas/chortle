@@ -25,7 +25,7 @@
             // A move can be recorded while the player is composing a guess, but
             // feedback belongs to a submitted row only.
             const letterStatus = submitted ? status[index] : -1;
-            if (!FILE_LETTERS.includes(word[index] || "")) {
+            if (!word[index] || !FILE_LETTERS.includes(word[index])) {
                 return { move: "", moveStatus: letterStatus };
             }
             const action = actions[actionIndex++];

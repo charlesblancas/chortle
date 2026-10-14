@@ -3,6 +3,7 @@ import { test, expect } from "@playwright/test";
 test.use({ storageState: { cookies: [], origins: [] } });
 for (const returning of [false, true]) {
     test(`iPhone 15 gameplay tutorial opens for ${returning ? "existing" : "new"} users until completed or dismissed`, async ({ page }) => {
+        await page.addInitScript(() => localStorage.setItem("chortle:line-invitation-v1", "1"));
         if (returning) await page.addInitScript(() => {
             localStorage.setItem("chortle:instructions-seen-v1", "1");
             localStorage.setItem("saved-progress-sentinel", "keep me");

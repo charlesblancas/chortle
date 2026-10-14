@@ -11,6 +11,7 @@
     export let solutionMoves = [];
     export let solved = false;
     export let extraMoves = 0;
+    export let lineMode = false;
     export let day;
     export let attempts;
     export let maxAttempts = 4;
@@ -43,7 +44,7 @@
         }).filter(Boolean).join("\n");
     }
     $: extraMovesMessage = solved && extraMoves === 0 ? "Perfect game! No extra moves." : `Extra moves: ${extraMoves}`;
-    $: shareMessage = `CHORTLE BETA #${String(day).padStart(4, "0")} ${solved ? attempts : "X"}/${maxAttempts}\nhttps://chortle.charlesblancas.com\n${gameSummary}\n${extraMovesMessage}`;
+    $: shareMessage = `CHORTLE BETA${lineMode ? " · LINE MODE" : ""} #${String(day).padStart(4, "0")} ${solved ? attempts : "X"}/${maxAttempts}\nhttps://chortle.charlesblancas.com${lineMode ? "/?mode=line" : ""}\n${gameSummary}\n${extraMovesMessage}`;
     $: shareTitle = `CHORTLE BETA #${String(day).padStart(4, "0")}`;
 
     function fallbackCopy(text) {
@@ -122,7 +123,7 @@
 </script>
 
 <Modal show={$gameOver && !solutionViewing && !$showInstructions} labelledBy="result-title">
-    <p class="eyebrow">Puzzle {String(day).padStart(4, "0")}</p>
+    <p class="eyebrow">Puzzle {String(day).padStart(4, "0")}{lineMode ? " · Line mode" : ""}</p>
     <h1 id="result-title">{solved ? `Solved in ${attempts}/${maxAttempts}` : "Out of attempts"}</h1>
     <p class="answer">Today’s answer: <strong>{word}</strong></p>
     <p class="summary" aria-label="Result grid">{gameSummary}</p>

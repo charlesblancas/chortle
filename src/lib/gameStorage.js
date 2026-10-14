@@ -74,7 +74,11 @@ export function normalizeSavedGame(value) {
     if (!Array.isArray(value.statuses) || value.statuses.length !== ROWS || !value.statuses.every(isStatusRow)) return null;
     if (!Number.isInteger(value.currentRow) || value.currentRow < 0 || value.currentRow >= ROWS) return null;
     if (!Array.isArray(value.actions) || !value.actions.every(isAction)) return null;
-    if (value.actions.length !== chessLetterCount(value.guesses[value.currentRow])) return null;
+    if (value.mode !== undefined && value.mode !== "line") return null;
+    if (value.mode === "line") {
+        const placed = [...value.guesses[value.currentRow]].filter((letter) => letter >= "A" && letter <= "H").join("");
+        if (value.actions.length > 5 || placed !== value.actions.slice(0, placed.length).map((action) => action.letter).join("")) return null;
+    } else if (value.actions.length !== chessLetterCount(value.guesses[value.currentRow])) return null;
     const hasStoredActionHistory = Array.isArray(value.actionHistory);
     const hasStoredTerminal = typeof value.terminal === "boolean";
     const actionHistory = value.actionHistory ?? Array.from({ length: ROWS }, () => []);
@@ -118,6 +122,7 @@ export function normalizeSavedGame(value) {
         solved,
         completed,
     };
+    if (value.mode === "line") normalized.mode = "line";
     if (value.extraMoves !== undefined) {
         normalized.extraMoves = Number.isSafeInteger(value.extraMoves) && value.extraMoves >= 0 ? value.extraMoves : 0;
     }

@@ -3,6 +3,7 @@
 
     export let key;
     export let boardKey = false;
+    export let queuedMoves = false;
     export let status = -1;
 
     $: glyph = key === "Enter" ? "↵" : key === "Backspace" ? "⌫" : key;
@@ -11,7 +12,7 @@
         ? `Enter: submit guess, ${statusLabel}`
         : key === "Backspace"
             ? `Backspace: remove the last letter, ${statusLabel}`
-            : `${key.toUpperCase()}${boardKey ? ": choose this chess file on the board" : ""}, ${statusLabel}`;
+            : `${key.toUpperCase()}${boardKey ? queuedMoves ? ": place the next queued chess letter" : ": choose this chess file on the board" : ""}, ${statusLabel}`;
 
     const dispatch = createEventDispatcher();
 

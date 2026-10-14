@@ -7,6 +7,7 @@ test.afterEach(async ({ page }, testInfo) => {
 
 test("iPhone 15 gameplay interactive tutorial uses real feedback without changing daily progress", async ({ page, isMobile }, testInfo) => {
     await page.goto("/?day=32");
+    await page.evaluate(() => localStorage.setItem("chortle:line-invitation-v1", "1"));
     const tutorial = page.locator(".tutorial");
     await expect(tutorial).toBeVisible();
     const stored = await page.evaluate(() => JSON.stringify({ ...localStorage }));
