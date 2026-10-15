@@ -91,7 +91,7 @@
     {:else}
     <div class="instructions-content">
         <p class="eyebrow">How to play</p>
-        <h1 id="instructions-title">Find the word through the board.</h1>
+        <h1 id="instructions-title">Find the word. Find the best moves.</h1>
         <p class="intro">Guess the five-letter answer in four tries. You win when every letter is green and every A–H chess move is correct.</p>
         <ol>
             <li>Type letters outside A–H with your keyboard.</li>
