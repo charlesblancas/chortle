@@ -68,7 +68,7 @@
     </div>
     <div class="practice-board">
         {#key `${boardReset}:${state.index}`}
-            <Chess fen={lesson.fen} movesString={lesson.moves} replay playable replayFen={state.fen} replayMove={state.lastMove} replayArrow={arrow} disabled={step.kind !== "move"} idPrefix="tutorial-chess" {pieceSet} on:replayMove={(event) => update(session.move(event.detail.uci))} on:preview={(event) => preview = event.detail.letter} />
+            <Chess fen={lesson.fen} replay playable replayFen={state.fen} replayMove={state.lastMove} replayArrow={arrow} disabled={step.kind !== "move"} idPrefix="tutorial-chess" {pieceSet} on:replayMove={(event) => update(session.move(event.detail.uci))} on:preview={(event) => preview = event.detail.letter} />
         {/key}
     </div>
     {#if !explanation && step.kind !== "complete"}

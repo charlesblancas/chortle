@@ -46,6 +46,7 @@ test('touch selection keeps the board and preview letter in sync', async ({ page
     await expect(page.locator('.guess.active .ghost')).toHaveCount(0);
 
     // Typing a normal letter or undoing must leave a fresh selection usable.
+    await expect(page.locator('[data-square="e1"]')).toBeEnabled();
     await tapSquare('e1');
     await expect(page.locator('.guess.active .letter').nth(2)).toHaveText('E');
     await page.keyboard.type('r');

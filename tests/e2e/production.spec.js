@@ -6,8 +6,8 @@ test("production preview serves the shipped gameplay and worker assets", async (
     const responses = [];
     page.on("response", (response) => responses.push(response));
     await page.goto("/");
-    await expect(page).toHaveTitle(/Play Chortle/);
-    await expect(page.getByRole("dialog", { name: "Find the word through the board." })).toBeVisible();
+    await expect(page).toHaveTitle(/Chortle \| Find the word/);
+    await expect(page.getByRole("dialog", { name: "Find the word. Find the best moves." })).toBeVisible();
     await page.getByRole("dialog").getByRole("button", { name: "Understood" }).click();
     await expect(page.getByRole("region", { name: /Chess board/i })).toBeVisible();
     expect(await page.locator(".debug-fixtures").count()).toBe(0);
