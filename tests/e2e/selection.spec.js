@@ -35,6 +35,7 @@ test('mouse selection and dragging keep the preview aligned with the board', asy
 
     // Keyboard square controls share the same selection as direct board input.
     const king = page.locator('[data-square="e1"]');
+    await expect(king).toBeEnabled();
     await king.focus();
     await page.keyboard.press('Enter');
     await expect(page.locator('.guess.active .letter').nth(2)).toHaveText('E');

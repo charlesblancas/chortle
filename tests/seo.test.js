@@ -7,8 +7,8 @@ const canonical = "https://chortle.charlesblancas.com/";
 
 test("search metadata describes the game and consolidates daily URLs", () => {
     const html = read("index.html");
-    assert.match(html, /<title>Play Chortle — Daily Chess &amp; Word Puzzle Game<\/title>/);
-    assert.match(html, /<meta name="description" content="Play Chortle,[^"]+four guesses\."/);
+    assert.match(html, /<title>Chortle \| Find the word\. Find the best moves\.<\/title>/);
+    assert.match(html, /<meta name="description" content="Find the word\. Find the best moves\.[^"]+four guesses\."/);
     assert.ok(html.includes(`<link rel="canonical" href="${canonical}"`));
     assert.ok(html.includes(`<meta property="og:url" content="${canonical}"`));
     assert.doesNotMatch(html, /noindex/);

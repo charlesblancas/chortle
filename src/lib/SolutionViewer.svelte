@@ -91,7 +91,7 @@
     <p class="position" aria-live="polite">{positionText} · {positionIndex}/{positions.length - 1}</p>
 
     <div class="replay-board" data-arrow-source={replay.arrowSource} aria-label={replay.arrowSource === "both" ? "Puzzle continuation and Stockfish suggestion arrows" : replay.arrowSource === "puzzle" ? "Puzzle continuation arrow" : replay.arrowSource === "stockfish" ? "Stockfish suggestion arrow" : "No move suggestion arrow"}>
-        <Chess {fen} {movesString} {pieceSet} replay={true} replayFen={replay.boardFen} replayMove={displayMove} replayArrows={replay.replayArrows} playable={interactive} readOnly={!interactive} disabled={!interactive} on:replayMove={handleReplayMove} />
+        <Chess {fen} {pieceSet} replay={true} replayFen={replay.boardFen} replayMove={displayMove} replayArrows={replay.replayArrows} playable={interactive} readOnly={!interactive} disabled={!interactive} on:replayMove={handleReplayMove} />
         <div class="evaluation-wrap">
             <div class="evaluation-bar" aria-label={`Evaluation: ${evaluationText}`} title={`Evaluation: ${evaluationText}`}>
                 <span class="white-share" style={`height: ${whiteShare}%`}></span>

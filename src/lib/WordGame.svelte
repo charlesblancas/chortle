@@ -9,10 +9,10 @@
     import { games } from "../games/final_games";
     import { possibilities } from "../games/possibilities";
     import { gameOver, showInstructions } from "../stores";
-    import { FILE_LETTERS, confirmedMoveShortcut, dailyPuzzleIndex, isExtraPlayerMove, isSolvedGuess, playerMoves, scoreWord, shouldHandleWordGameKey } from "../gameRules";
-    import { browserStorage, gameStorageKey, readSavedGame, removeSavedGame, safeStorage, writeSavedGame } from "./gameStorage";
-    import { onMount, tick } from "svelte";
-    import { placedMoveCount, placeQueuedLetter, undoQueuedMove, lineGuessError, requiredLineMoves } from "./lineMode.js";
+    import { dailyPuzzleIndex, playerMoves, shouldHandleWordGameKey } from "../gameRules";
+    import { browserStorage, gameStorageKey, removeSavedGame, safeStorage } from "./gameStorage";
+    import { onMount, onDestroy, tick } from "svelte";
+    import { createDailyPuzzleSession } from "./dailyPuzzleSession.js";
     import { preferredGameMode } from "./gameMode.js";
     import { formatUciMove } from "./chessNotation.js";
     const lineMode = preferredGameMode() === "line";
@@ -21,43 +21,24 @@
     export let dayOverride = NaN;
     export let pieceSet = "cburnett";
     const storage = safeStorage();
-    let ROWS = 4;
-    let guesses = Array(ROWS).fill("");
-    if (fixture?.initialGuess) guesses[0] = fixture.initialGuess.toUpperCase();
-    let statuses = Array.from({ length: ROWS }, () => Array(5).fill(-1));
-    let currentRow = 0;
-    let extraMoves = 0;
-    let actions = fixture?.initialActions ? [...fixture.initialActions] : [];
-    let actionHistory = Array.from({ length: ROWS }, () => []);
-    let solved = Boolean(fixture?.autoSubmit);
-    if (fixture?.autoSubmit) {
-        statuses[0] = scoreWord(guesses[0], fixture.game.word.toUpperCase());
-        actionHistory[0] = actions.map((action) => ({ ...action }));
-    }
     let previewLetter = "";
     let gameBoard;
     let lineStatus;
-    let keyStatuses = {};
-    let message = "";
-    let highlightFile = "";
-    let engineThinking = false;
-    let messageTimer;
     const day = dailyPuzzleIndex();
     const selectedDay = Number.isFinite(dayOverride) ? Math.max(1, Math.floor(dayOverride)) : day;
     const dailyGame = games[(selectedDay - 1) % games.length];
-    $: game = fixture?.game || dailyGame;
-    $: answer = game.word.toUpperCase();
-    $: solutionMoves = playerMoves(game.moves);
-    let mated = fixture?.mated || false;
-    let terminal = fixture?.terminal || fixture?.mated || false;
-    let promotionPending = false;
+    const game = fixture?.game || dailyGame;
+    const answer = game.word.toUpperCase();
+    const solutionMoves = playerMoves(game.moves);
+    const storageKey = gameStorageKey(selectedDay, game) + (lineMode ? ":line" : "");
+    const session = createDailyPuzzleSession({ game, mode: lineMode ? "line" : "normal", storage, storageKey, fixture, isWord: word => possibilities.includes(word) });
+    $: ({ guesses, statuses, currentRow, actions, actionHistory, keyStatuses, mated, terminal, solved, extraMoves,
+        message, highlightFile, thinking: engineThinking, promotionPending, requiredMoves, restoredCompleted } = $session);
+    $: ROWS = guesses.length;
     let solutionViewing = false;
     let hydrated = false;
-    let restoredCompleted = false;
     let autoResultSubscription;
     const dateLabel = new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "long", year: "numeric" }).format(new Date());
-    $: storageKey = gameStorageKey(selectedDay, game) + (lineMode ? ":line" : "");
-    $: requiredMoves = requiredLineMoves(answer);
     $: replayStateKey = `chortle:replay-state:${fixture?.id || storageKey}`;
     $: solutionViewKey = `chortle:replay-open:${fixture?.id || storageKey}`;
 
@@ -79,36 +60,17 @@
         solutionViewing = saved === "open";
     }
 
-    function saveGame(completed = $gameOver) {
-        if (!hydrated || fixture) return;
-        writeSavedGame(storage, storageKey, { guesses, statuses, currentRow, actions, actionHistory, keyStatuses, mated, terminal, solved, completed, extraMoves, ...(lineMode ? { mode: "line" } : {}) });
-    }
-
     onMount(() => {
         restoreSolutionView();
         if (!fixture) {
-            const saved = readSavedGame(storage, storageKey);
-            if (saved) {
-                restoredCompleted = saved.completed;
-                ROWS = saved.guesses.length;
-                guesses = saved.guesses;
-                statuses = saved.statuses;
-                currentRow = saved.currentRow;
-                extraMoves = saved.extraMoves ?? 0;
-                actions = saved.actions;
-                actionHistory = saved.actionHistory;
-                keyStatuses = saved.keyStatuses;
-                mated = saved.mated;
-                terminal = saved.terminal || saved.mated;
-                solved = saved.solved;
-                if (!saved.completed) closeSolution();
+            if (restoredCompleted) {
                 // Let child components receive the restored rows before the
                 // result modal opens for the completed state. This keeps
                 // a completed game visible, including its result grid, after
                 // a refresh.
                 tick().then(() => {
-                    gameOver.set(saved.completed);
-                    if (saved.completed) showInstructions.set(false);
+                    gameOver.set(true);
+                    showInstructions.set(false);
                 });
             } else {
                 gameOver.set(false);
@@ -140,52 +102,19 @@
         return () => autoResultSubscription?.();
     });
 
-    function clearGuidance() {
-        message = "";
-        highlightFile = "";
-        clearTimeout(messageTimer);
+    onDestroy(() => session.destroy());
+    let completionPresented = false;
+    $: if (hydrated && $session.completed && !fixture?.autoSubmit && !completionPresented) {
+        completionPresented = true;
+        showInstructions.set(false);
+        gameOver.set(true);
     }
-
+    function clearGuidance() { session.clearGuidance(); }
     function input(key) {
         if ($showInstructions || $gameOver || engineThinking || promotionPending) return;
-        // A terminal board can mean the player checkmated the opponent. The
-        // board must stay locked then, but ordinary word letters still need
-        // to be completable. Only a player who is mated must undo before
-        // entering anything else.
-        if (mated && !lineMode && key !== "Backspace") {
-            clearGuidance();
-            message = "Position ended. Press Backspace to revise your last move.";
-            return;
-        }
-        clearGuidance();
+        previewLetter = "";
         gameBoard?.clearSelection();
-        if (/^[A-Za-z]$/.test(key)) {
-            key = key.toUpperCase();
-            if (FILE_LETTERS.includes(key)) {
-                if (guesses[currentRow].length >= 5) return;
-                if (lineMode) {
-                    const placed = placeQueuedLetter(guesses[currentRow], actions, key);
-                    if (placed !== null) { guesses[currentRow] = placed; guesses = guesses; saveGame(); }
-                    else if (placedMoveCount(guesses[currentRow]) === actions.length && actions.length < requiredMoves) {
-                        const knownMove = confirmedMoveShortcut(key, actions, guesses, statuses, actionHistory);
-                        if (knownMove && gameBoard?.playKnownMove(knownMove)) {
-                            guesses[currentRow] += key;
-                            guesses = guesses;
-                            if (!actions.at(-1)?.pending) saveGame();
-                        } else message = "Play a chess move to queue its letter.";
-                    } else message = actions[placedMoveCount(guesses[currentRow])] ? `Place ${actions[placedMoveCount(guesses[currentRow])].letter} next.` : "All required moves are queued.";
-                    return;
-                }
-                const knownMove = confirmedMoveShortcut(key, actions, guesses, statuses, actionHistory);
-                if (knownMove && gameBoard?.playKnownMove(knownMove)) return;
-                message = `${key} comes from a move starting on the ${key}-file.`;
-                highlightFile = key;
-                messageTimer = setTimeout(clearGuidance, 1500);
-                return;
-            }
-            if (guesses[currentRow].length < 5) { guesses[currentRow] += key; guesses = guesses; saveGame(); }
-        } else if (key === "Backspace") undo();
-        else if (key === "Enter") submit();
+        session.input(key);
     }
 
     function handleWindowKeydown(event) {
@@ -198,97 +127,14 @@
         input(event.key);
     }
 
-    function chessLetter(event) {
-        if (lineMode ? actions.length >= requiredMoves : guesses[currentRow].length >= 5) return;
-        previewLetter = "";
-        if (isExtraPlayerMove(game.moves, actions, event.detail.uci)) extraMoves += 1;
-        actions = [...actions, event.detail];
-        mated = event.detail.mated || false;
-        terminal = event.detail.terminal || false;
-        if (!lineMode) guesses[currentRow] += event.detail.letter;
-        guesses = guesses;
-        if (!event.detail.pending) saveGame();
-        if (lineMode && !event.detail.pending) focusLineInput();
+    function focusLineInput(event) {
+        // Keep DOM focus concerns outside the session.
+        if (lineMode && (event?.detail.keyboard || document.activeElement?.closest('.square-controls'))) tick().then(() => lineStatus?.focus());
     }
-
-    function resolveChessMove(event) {
-        const action = actions[event.detail.index];
-        if (!action) return;
-        actions = actions.map((item, index) => index === event.detail.index
-            ? { ...item, reply: event.detail.reply, mated: event.detail.mated, terminal: event.detail.terminal, pending: false }
-            : item);
-        mated = event.detail.mated || false;
-        terminal = event.detail.terminal || false;
-        saveGame();
-        if (lineMode) focusLineInput();
-    }
-
-    function focusLineInput() {
-        // A keyboard move can leave focus on a square button. Once committed,
-        // give letter input a neutral focus target without changing the selection flow.
-        if (document.activeElement?.closest('.square-controls')) tick().then(() => lineStatus?.focus());
-    }
-
-    function handlePromotion(event) {
-        promotionPending = event.detail.active;
-    }
-
-    function undo() {
-        previewLetter = "";
-        const guess = guesses[currentRow];
-        if (!guess) { if (lineMode) undoBoardMove(); return; }
-        const letter = guess.at(-1);
-        guesses[currentRow] = guess.slice(0, -1);
-        if (!lineMode && FILE_LETTERS.includes(letter)) {
-            actions = actions.slice(0, -1);
-            mated = false;
-            terminal = false;
-        }
-        guesses = guesses;
-        saveGame();
-    }
-
     function undoBoardMove() {
-        if (engineThinking || promotionPending || $showInstructions || $gameOver) return;
-        const revised = undoQueuedMove(guesses[currentRow], actions);
-        guesses[currentRow] = revised.word;
-        guesses = guesses;
-        actions = revised.actions;
-        mated = false;
-        terminal = false;
+        if ($showInstructions || $gameOver) return;
         previewLetter = "";
-        saveGame();
-    }
-
-    function submit() {
-        const guess = guesses[currentRow];
-        if (lineMode) {
-            const error = lineGuessError(guess, actions, requiredMoves);
-            if (error) { message = error; return; }
-        }
-        if (guess.length < 5) { message = "Not enough letters"; return; }
-        if (!possibilities.includes(guess.toLowerCase())) { message = `${guess} not in word list`; return; }
-        const result = scoreWord(guess, answer);
-        actionHistory[currentRow] = actions.map((action) => ({ ...action }));
-        actionHistory = actionHistory;
-        statuses[currentRow] = result; statuses = statuses;
-        const nextKeyStatuses = { ...keyStatuses };
-        for (let i = 0; i < guess.length; i++) {
-            const letter = guess[i];
-            nextKeyStatuses[letter] = Math.max(nextKeyStatuses[letter] ?? -1, result[i]);
-        }
-        keyStatuses = nextKeyStatuses;
-        solved = isSolvedGuess(result, guess, actions);
-        if (solved || currentRow === ROWS - 1) { showInstructions.set(false); gameOver.set(true); saveGame(true); return; }
-        if (result.every((x) => x === 2)) message = "Word right. Replay it with the right board moves.";
-        currentRow += 1;
-        actions = [];
-        // A reply can checkmate the player.  That only locks the current
-        // board row; the next guess starts from the puzzle position again.
-        mated = false;
-        terminal = false;
-        promotionPending = false;
-        saveGame(false);
+        session.undoMove();
     }
 
     function resetDebugGame() {
@@ -329,12 +175,12 @@
         <SolutionViewer fen={game.fen} movesString={game.moves} {pieceSet} {replayStateKey} interactive={solutionViewing && !$showInstructions} on:close={closeSolution} />
     {:else}
         <div class="live-play">
-            <Chess bind:this={gameBoard} fen={game.fen} movesString={game.moves} {actions} {mated} {terminal} {pieceSet} disabled={$showInstructions || mated || terminal || engineThinking || promotionPending || (lineMode ? actions.length >= requiredMoves : guesses[currentRow].length >= 5)} {highlightFile} on:move={chessLetter} on:resolve={resolveChessMove} on:thinking={(event) => engineThinking = event.detail.active} on:promotion={handlePromotion} on:preview={(event) => previewLetter = lineMode ? "" : event.detail.letter} />
+            <Chess bind:this={gameBoard} fen={game.fen} {session} position={$session} {mated} {terminal} {pieceSet} disabled={$showInstructions || $session.boardDisabled} {highlightFile} on:commit={focusLineInput} on:promotion={(event) => session.setPromotionPending(event.detail.active)} on:preview={(event) => previewLetter = lineMode ? "" : event.detail.letter} />
             {#if lineMode}
                 <div class="line-controls" aria-label="Line mode move queue">
                     <span class="line-count" bind:this={lineStatus} tabindex="-1" role="status">Line mode · {actions.length}/{requiredMoves} moves</span>
                     <div class="move-queue">
-                        {#each actions as action, index}<button type="button" aria-label={`Place queued ${action.letter}, move ${index + 1}, ${formatUciMove(action.uci)}`} title={formatUciMove(action.uci)} disabled={index !== placedMoveCount(guesses[currentRow]) || guesses[currentRow].length >= 5 || engineThinking || promotionPending || $showInstructions} on:click={(event) => { input(action.letter); event.currentTarget.blur(); }}><span>{action.letter}</span><small class="queue-notation">{formatUciMove(action.uci)}</small></button>{/each}
+                        {#each actions as action, index}<button type="button" aria-label={`Place queued ${action.letter}, move ${index + 1}, ${formatUciMove(action.uci)}`} title={formatUciMove(action.uci)} disabled={index !== $session.placedMoves || guesses[currentRow].length >= 5 || engineThinking || promotionPending || $showInstructions} on:click={(event) => { input(action.letter); event.currentTarget.blur(); }}><span>{action.letter}</span><small class="queue-notation">{formatUciMove(action.uci)}</small></button>{/each}
                         <button type="button" class="undo-move" disabled={!actions.length || engineThinking || promotionPending || $showInstructions} on:click={(event) => { undoBoardMove(); event.currentTarget.blur(); }}>Undo move</button>
                     </div>
                 </div>

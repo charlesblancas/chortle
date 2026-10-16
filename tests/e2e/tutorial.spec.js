@@ -79,7 +79,7 @@ test("iPhone 15 gameplay interactive tutorial uses real feedback without changin
     await tutorial.getByRole("button", { name: "Replay tutorial", exact: true }).click();
     await expect(rows).toHaveCount(1);
     await tutorial.getByRole("button", { name: "Written instructions", exact: true }).click();
-    await expect(page.getByRole("heading", { name: "Find the word through the board." })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Find the word. Find the best moves." })).toBeVisible();
     await page.getByRole("button", { name: "Play tutorial", exact: true }).click();
     await page.keyboard.press("Escape");
     await expect(page.getByRole("dialog")).toHaveCount(0);

@@ -2,14 +2,11 @@
     import { createEventDispatcher, onMount, tick } from "svelte";
     import { Chess } from "chess.js";
     import { Chessground } from "svelte-chessground";
-    import { isCanonicalPlayerMove, isPlayerMatedAfterReply } from "../gameRules";
-    import { isUciMove } from "./fastChessEngine";
     import { warmStockfish } from "./stockfishEngine";
-    import { gameplayReply } from "./gameplayReply";
 
     export let fen;
-    export let movesString;
-    export let actions = [];
+    export let session = null;
+    export let position = null;
     export let pieceSet = "cburnett";
     export let disabled = false;
     export let mated = false;
@@ -33,11 +30,11 @@
     const PIECE_CODES = ["P", "N", "B", "R", "Q", "K"];
     const dispatch = createEventDispatcher();
     const chess = new Chess();
-    const line = movesString.split(" ");
     let chessground;
     let last = "";
     let selectedSquare = "";
-    let engineThinking = false;
+    let keyboardMove = false;
+    $: engineThinking = Boolean(position?.thinking);
     let promotionPending = null;
     let promotionFirstButton;
     let promotionDialog;
@@ -53,7 +50,7 @@
         ...choice,
         symbol: promotionPending?.color === "b" ? choice.black : choice.white,
     }));
-    $: boardFen = replay ? replayFen : fen;
+    $: boardFen = position?.boardFen || (replay ? replayFen : fen);
     $: orientation = fen.split(" ")[1] === "w" ? "black" : "white";
     $: playerColor = orientation;
     $: files = orientation === "white" ? "ABCDEFGH".split("") : "HGFEDCBA".split("");
@@ -81,16 +78,6 @@
         legalDestinations = result;
         return legalDestinations;
     }
-    function apply(uci, animate = true) {
-        if (!isUciMove(uci)) return false;
-        try {
-            const move = chess.move({ from: uci.slice(0, 2), to: uci.slice(2, 4), promotion: uci[4] });
-            if (move && animate) chessground.move(move.from, move.to);
-            return Boolean(move);
-        } catch {
-            return false;
-        }
-    }
     function setup() {
         const turnColor = chess.turn() === "w" ? "white" : "black";
         const playerTurn = turnColor === playerColor;
@@ -113,7 +100,7 @@
     }
     function rebuild() {
         if (!chessground) return;
-        const currentFen = replay ? replayFen : fen;
+        const currentFen = boardFen;
         if (promotionPending) {
             promotionPending = null;
             dispatch("promotion", { active: false });
@@ -121,21 +108,12 @@
         chess.load(currentFen);
         boardVersion += 1;
         clearSelection();
-        // Reconstruct the rules board silently. Sending the starting position
-        // and every historical move to Chessground restarts animations while
-        // an asynchronous opponent reply is pending.
-        if (!replay) {
-            apply(line[0], false);
-            actions.forEach((action) => { apply(action.uci, false); apply(action.reply, false); });
-        }
-        const latestMove = chess.history({ verbose: true }).at(-1);
+        const displayMove = position?.boardMove || replayMove;
         chessground.set({
             fen: chess.fen(),
             orientation,
             coordinates: false,
-            lastMove: replay
-                ? (replayMove ? [replayMove.slice(0, 2), replayMove.slice(2, 4)] : undefined)
-                : (latestMove ? [latestMove.from, latestMove.to] : undefined),
+            lastMove: displayMove ? [displayMove.slice(0, 2), displayMove.slice(2, 4)] : undefined,
             ...(replay ? { drawable: { enabled: false, visible: true, autoShapes: replayShapes } } : {}),
         });
         setup();
@@ -151,12 +129,18 @@
         setup();
         return true;
     }
-    async function commitMove(from, to, promotion = "", allowDisabled = false) {
+    function commitMove(from, to, promotion = "", allowDisabled = false) {
         // The parent intentionally disables normal input while the chooser is
         // open. A selected promotion is the one move that must still be
         // committed before that prop has flushed back down to this component.
         if ((disabled && !allowDisabled) || (terminal && !allowDisabled) || engineThinking) return;
-        const playerColor = chess.turn();
+        if (session) {
+            clearSelection();
+            dispatch("commit", { keyboard: keyboardMove });
+            keyboardMove = false;
+            void session.play(`${from}${to}${promotion}`);
+            return;
+        }
         let move;
         try {
             move = chess.move({ from, to, promotion });
@@ -172,76 +156,6 @@
             setup();
             return;
         }
-        const actionIndex = actions.length;
-        // Once a player leaves the puzzle line, the position has diverged even
-        // if they later happen to play the same UCI move as the canonical
-        // continuation. Treat that move as off-line too so the engine keeps
-        // replying and the letter receives the intended yellow semantics.
-        const moveCorrect = isCanonicalPlayerMove(movesString, actions, uci);
-        let reply = line[2 + actionIndex * 2];
-
-        clearSelection();
-        // A few puzzle records intentionally end on the player's move. If
-        // that move leaves a live position, we still need a reply so the board
-        // returns to the player's turn instead of looking frozen. A genuinely
-        // terminal position has no reply and can resolve immediately.
-        const terminalAfterMove = chess.isGameOver();
-        dispatch("move", {
-            letter: move.from[0].toUpperCase(),
-            uci,
-            reply: "",
-            moveCorrect,
-            mated: false,
-            terminal: terminalAfterMove,
-            pending: !terminalAfterMove,
-        });
-
-        // No engine reply is possible once the player's move has ended the
-        // position. This also covers an off-line checkmate/stalemate: waiting
-        // for a reply that can never exist leaves the board looking frozen.
-        if (terminalAfterMove) {
-            // The move itself may have ended the position (for example a
-            // puzzle line whose final move is checkmate).  Refresh
-            // Chessground so it observes the terminal turn and cannot leave
-            // stale destinations that look like a frozen board.
-            setup();
-            return;
-        }
-
-        engineThinking = true;
-        setup();
-        dispatch("thinking", { active: true });
-        try {
-            reply = await gameplayReply(chess.fen(), moveCorrect ? reply : "");
-            // Never unlock the board until the reply has actually been
-            // applied. A malformed or stale engine response must not leave
-            // the side-to-move on the opponent, which looks like the player
-            // can move black pieces next.
-            let replyApplied = reply ? apply(reply) : false;
-            if (!replyApplied) {
-                // The engine can time out, a saved line can contain a stale reply,
-                // or a correct line can simply end before the opponent reply.
-                // Always recover with a legal deterministic move when one
-                // exists, so the board returns to the player's turn.
-                const fallbackReply = await gameplayReply(chess.fen());
-                replyApplied = Boolean(fallbackReply && apply(fallbackReply));
-                reply = replyApplied ? fallbackReply : "";
-            }
-            const matedAfterReply = isPlayerMatedAfterReply(chess, playerColor, reply);
-            dispatch("resolve", { index: actionIndex, reply, mated: matedAfterReply, terminal: chess.isGameOver() });
-        } finally {
-            engineThinking = false;
-            dispatch("thinking", { active: false });
-            setup();
-        }
-    }
-    export function playKnownMove(uci) {
-        if (!chessground || readOnly || disabled || terminal || engineThinking || promotionPending || !isUciMove(uci)) return false;
-        const legal = chess.moves({ verbose: true }).some((move) =>
-            `${move.from}${move.to}${move.promotion || ""}` === uci);
-        if (!legal) return false;
-        commitMove(uci.slice(0, 2), uci.slice(2, 4), uci[4] || "");
-        return true;
     }
 
     async function after(from, to) {
@@ -348,6 +262,7 @@
             clearSelection();
             return;
         }
+        keyboardMove = true;
         chessground.selectSquare(square);
         syncSelection();
     }
@@ -386,7 +301,7 @@
     // Arrow updates arrive while the solution analysis deepens. Keep them out
     // of the board rebuild signature so a search result cannot clear a user's
     // selected piece or make a click feel unresponsive.
-    $: signature = JSON.stringify({ actions, replay, replayFen, replayMove });
+    $: signature = JSON.stringify({ boardFen, replay, replayMove, boardMove: position?.boardMove });
     $: if (chessground && signature !== last) { last = signature; rebuild(); }
     $: interactionSignature = `${disabled}:${readOnly}:${playable}:${engineThinking}:${Boolean(promotionPending)}`;
     $: replayVisualSignature = JSON.stringify(replayShapes);

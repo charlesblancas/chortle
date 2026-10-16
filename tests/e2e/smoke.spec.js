@@ -127,7 +127,7 @@ test.describe("compact iPhone gameplay", () => {
 
     test("keeps the active row, board, and keyboard in one viewport", async ({ page }) => {
         await page.goto("/?fixture=duplicate-score");
-        const instructions = page.getByRole("dialog", { name: "Find the word through the board." });
+        const instructions = page.getByRole("dialog", { name: "Find the word. Find the best moves." });
         const understood = instructions.getByRole("button", { name: "Understood" });
         await expect(understood).toBeVisible();
         const instructionBox = await understood.boundingBox();
@@ -201,7 +201,7 @@ test.describe("mobile chess move hints", () => {
 
     test("keeps the move hint in a compressed submitted row", async ({ page }) => {
         await page.goto("/?fixture=mixed-entry");
-        const instructions = page.getByRole("dialog", { name: "Find the word through the board." });
+        const instructions = page.getByRole("dialog", { name: "Find the word. Find the best moves." });
         await instructions.getByRole("button", { name: "Understood" }).click();
 
         const controls = page.locator(".square-controls");
@@ -213,6 +213,7 @@ test.describe("mobile chess move hints", () => {
             await expect(destination).toBeEnabled();
             await destination.focus();
             await page.keyboard.press("Enter");
+            await expect(page.locator('.guess.active .move').filter({ hasText: `${from}→${to}` })).toBeVisible();
             await expect(page.locator('.live-play .square-control:enabled').first()).toBeVisible();
         };
 
@@ -264,9 +265,9 @@ test("four incorrect guesses end the game", async ({ page }) => {
 
 test("loads the daily game and closes the first-use instructions", async ({ page }) => {
     await page.goto("/");
-    await expect(page).toHaveTitle(/Play Chortle/);
+    await expect(page).toHaveTitle(/Chortle \| Find the word/);
     await expect(page.getByRole("heading", { name: /Chortle/ })).toBeVisible();
-    const instructions = page.getByRole("dialog", { name: "Find the word through the board." });
+    const instructions = page.getByRole("dialog", { name: "Find the word. Find the best moves." });
     await expect(instructions).toBeVisible();
     await instructions.getByRole("button", { name: "Understood" }).click();
     await expect(instructions).toBeHidden();
@@ -277,7 +278,7 @@ test("loads the daily game and closes the first-use instructions", async ({ page
 
 test("instructions keep keyboard focus inside the dialog", async ({ page }) => {
     await page.goto("/?fixture=mixed-entry");
-    const instructions = page.getByRole("dialog", { name: "Find the word through the board." });
+    const instructions = page.getByRole("dialog", { name: "Find the word. Find the best moves." });
     await expect(instructions).toBeVisible();
     await expect(instructions).toBeFocused();
     await page.keyboard.press("Shift+Tab");
@@ -288,14 +289,14 @@ test("instructions keep keyboard focus inside the dialog", async ({ page }) => {
 
 test("first-use instructions stay dismissed after a reload", async ({ page }) => {
     await page.goto("/?fixture=mixed-entry");
-    const instructions = page.getByRole("dialog", { name: "Find the word through the board." });
+    const instructions = page.getByRole("dialog", { name: "Find the word. Find the best moves." });
     await expect(instructions).toBeVisible();
     await instructions.getByRole("button", { name: "Understood" }).click();
     await expect(instructions).toBeHidden();
 
     await page.reload();
 
-    await expect(page.getByRole("dialog", { name: "Find the word through the board." })).toBeHidden();
+    await expect(page.getByRole("dialog", { name: "Find the word. Find the best moves." })).toBeHidden();
     await expect(page.getByRole("region", { name: /Chess board/i })).toBeVisible();
 });
 
@@ -328,7 +329,7 @@ test("short desktop and landscape layouts never scroll", async ({ page }) => {
     for (const size of [{ width: 1366, height: 768 }, { width: 844, height: 390 }]) {
         await page.setViewportSize(size);
         await page.goto("/?fixture=mixed-entry");
-        const instructions = page.getByRole("dialog", { name: "Find the word through the board." });
+        const instructions = page.getByRole("dialog", { name: "Find the word. Find the best moves." });
         if (await instructions.isVisible()) {
             await instructions.getByRole("button", { name: "Understood" }).click();
         }
@@ -695,7 +696,7 @@ test.describe("compact solution replay", () => {
 
     test("keeps the replay inside the phone viewport", async ({ page }) => {
         await page.goto("/?fixture=solution-state");
-        await page.getByRole("dialog", { name: "Find the word through the board." }).getByRole("button", { name: "Understood" }).click();
+        await page.getByRole("dialog", { name: "Find the word. Find the best moves." }).getByRole("button", { name: "Understood" }).click();
         await page.getByRole("dialog", { name: /Solved in 1\/4/ }).getByRole("button", { name: "View solution" }).click();
         await expect(page.getByRole("button", { name: "Back to result" })).toBeVisible();
 
@@ -719,7 +720,7 @@ test.describe("short solution replay", () => {
 
     test("keeps the replay inside the shortest phone viewport", async ({ page }) => {
         await page.goto("/?fixture=solution-state");
-        await page.getByRole("dialog", { name: "Find the word through the board." }).getByRole("button", { name: "Understood" }).click();
+        await page.getByRole("dialog", { name: "Find the word. Find the best moves." }).getByRole("button", { name: "Understood" }).click();
         await page.getByRole("dialog", { name: /Solved in 1\/4/ }).getByRole("button", { name: "View solution" }).click();
         await expect(page.getByRole("button", { name: "Back to result" })).toBeVisible();
 
@@ -737,7 +738,7 @@ test.describe("short solution replay", () => {
 
 test("solution replay releases and reapplies the modal scroll lock", async ({ page }) => {
     await page.goto("/?fixture=solution-state");
-    await page.getByRole("dialog", { name: "Find the word through the board." }).getByRole("button", { name: "Understood" }).click();
+    await page.getByRole("dialog", { name: "Find the word. Find the best moves." }).getByRole("button", { name: "Understood" }).click();
 
     const result = page.getByRole("dialog", { name: /Solved in 1\/4/ });
     await expect(result).toBeVisible();
