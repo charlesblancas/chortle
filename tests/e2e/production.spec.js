@@ -16,3 +16,40 @@ test("production preview serves the shipped gameplay and worker assets", async (
     const html = await request.get("/");
     expect(html.ok()).toBeTruthy();
 });
+
+test("production preview serves the shipped gameplay and worker assets with explicit analytics only", async ({ page }) => {
+    const events = [];
+    await page.route('https://us.i.posthog.com/**', async route => {
+        if (route.request().method() === 'POST') events.push(route.request().postDataJSON());
+        await route.fulfill({ status: 200, headers: {
+            'access-control-allow-origin': '*', 'access-control-allow-headers': 'content-type',
+        }, body: '{}' });
+    });
+    // Render local production assets under their allowed hostname, without
+    // contacting either the real website or the real analytics project.
+    await page.route('https://chortle.charlesblancas.com/**', async route => {
+        const url = new URL(route.request().url());
+        const response = await route.fetch({ url: `http://127.0.0.1:4173${url.pathname}${url.search}` });
+        await route.fulfill({ response });
+    });
+    await page.addInitScript(() => {
+        localStorage.setItem('chortle:tutorial-completed-v1', '1');
+        localStorage.setItem('chortle:instructions-seen-v1', '1');
+        localStorage.setItem('chortle:line-invitation-v1', '1');
+    });
+    await page.goto('https://chortle.charlesblancas.com/');
+    await expect(page.getByRole('group', { name: 'Current guess row' })).toBeVisible();
+    expect(events).toHaveLength(0);
+    await page.keyboard.type('pious'); await page.keyboard.press('Enter');
+    await expect.poll(() => events.map(event => event.event)).toEqual(['puzzle_started', 'guess_submitted']);
+    expect(events[1].properties.mode).toBe('normal');
+    expect(events[1].properties.attempt).toBe(1);
+    expect(JSON.stringify(events)).not.toMatch(/PIOUS|pious|fen|movesString|current_url/);
+    await page.reload();
+    await expect(page.getByRole('group', { name: 'Submitted guess row, scored' }).first()).toBeVisible();
+    expect(events).toHaveLength(2);
+    await page.goto('https://chortle.charlesblancas.com/?day=1');
+    await page.keyboard.type('pious'); await page.keyboard.press('Enter');
+    await expect(page.getByRole('group', { name: 'Submitted guess row, scored' }).first()).toBeVisible();
+    expect(events).toHaveLength(2);
+});

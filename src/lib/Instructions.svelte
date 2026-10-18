@@ -5,6 +5,7 @@
     import { safeStorage } from "./gameStorage";
     import Tutorial from "./Tutorial.svelte";
     import { preferredGameMode, switchGameMode } from "./gameMode.js";
+    import { track } from "./analytics.js";
 
     export let pieceSet = "cburnett";
     export let canOfferInvitation = false;
@@ -44,6 +45,7 @@
         tick().then(() => closeFocus?.isConnected && closeFocus.focus());
     }
     function skipTutorial() {
+        track('tutorial_skipped');
         completeTutorial();
         closeInstructions();
     }

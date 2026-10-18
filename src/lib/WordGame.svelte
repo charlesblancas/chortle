@@ -31,7 +31,7 @@
     const answer = game.word.toUpperCase();
     const solutionMoves = playerMoves(game.moves);
     const storageKey = gameStorageKey(selectedDay, game) + (lineMode ? ":line" : "");
-    const session = createDailyPuzzleSession({ game, mode: lineMode ? "line" : "normal", storage, storageKey, fixture, isWord: word => possibilities.includes(word) });
+    const session = createDailyPuzzleSession({ game, mode: lineMode ? "line" : "normal", storage, storageKey, fixture, day: selectedDay, isWord: word => possibilities.includes(word) });
     $: ({ guesses, statuses, currentRow, actions, actionHistory, keyStatuses, mated, terminal, solved, extraMoves,
         message, highlightFile, thinking: engineThinking, promotionPending, requiredMoves, restoredCompleted } = $session);
     $: ROWS = guesses.length;

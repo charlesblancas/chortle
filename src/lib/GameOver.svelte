@@ -3,6 +3,7 @@
     import Modal from "./Modal.svelte";
     import { gameOver, showInstructions } from "../stores";
     import { scoreShareRow } from "../gameRules";
+    import { track } from "./analytics.js";
 
     export let word;
     export let statuses;
@@ -89,10 +90,12 @@
                 manualCopy?.select();
             }
         }
+        if (copied) track('share_completed', { day, mode: lineMode ? 'line' : 'normal', method: 'clipboard' });
     }
 
     async function shareResult() {
         if (sharing) return;
+        track('share_requested', { day, mode: lineMode ? 'line' : 'normal', method: useNativeShare ? 'native' : 'clipboard' });
         sharing = true;
         shareStatus = "";
         copyFailed = false;
@@ -110,6 +113,7 @@
                 text: shareMessage,
             });
             shareStatus = "Result shared.";
+            track('share_completed', { day, mode: lineMode ? 'line' : 'normal', method: 'native' });
         } catch (error) {
             // Canceling the native sheet is an expected user action, not an
             // error. Other failures use the clipboard/manual-copy fallback.

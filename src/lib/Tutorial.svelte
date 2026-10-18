@@ -6,6 +6,7 @@
     import { shouldHandleWordGameKey, playerMoves } from "../gameRules.js";
     import { createTutorialSession } from "./tutorialSession.js";
     import { tutorialLesson as lesson } from "./tutorialLesson.js";
+    import { track } from "./analytics.js";
 
     export let pieceSet = "cburnett";
     export let active = true;
@@ -15,7 +16,7 @@
     let boardReset = 0;
     let heading;
     let preview = "";
-    onMount(() => { tick().then(() => heading?.focus()); });
+    onMount(() => { track('tutorial_started'); tick().then(() => heading?.focus()); });
     const solutionMoves = playerMoves(lesson.moves);
     $: step = state.step;
     $: arrow = step.kind === "move" ? { orig: step.uci.slice(0, 2), dest: step.uci.slice(2, 4), brush: "blue" } : null;
@@ -24,7 +25,7 @@
     function update(accepted) {
         state = session.getSnapshot();
         preview = "";
-        if (accepted && state.step.kind === "complete") dispatch("complete");
+        if (accepted && state.step.kind === "complete") { track('tutorial_finished'); dispatch("complete"); }
         if (!accepted) boardReset += 1;
         // After completing a step, leave square/button focus so hardware letter
         // input works immediately. Selection itself never advances a step.

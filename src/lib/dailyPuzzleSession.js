@@ -3,6 +3,7 @@ import { FILE_LETTERS, confirmedMoveShortcut, isCanonicalPlayerMove, isExtraPlay
 import { isUciMove } from "./chessNotation.js";
 import { gameplayReply } from "./gameplayReply.js";
 import { readSavedGame, writeSavedGame } from "./gameStorage.js";
+import { track } from "./analytics.js";
 
 const placedMoveCount = word => [...word].filter(letter => FILE_LETTERS.includes(letter)).length;
 function placeQueuedLetter(word, actions, letter) {
@@ -28,7 +29,7 @@ function lineGuessError(word, actions, requiredMoves) {
  * The view subscribes to snapshots; only this module accepts moves and replies.
  * Reply and storage adapters keep browser effects outside the session rules.
  */
-export function createDailyPuzzleSession({ game, mode = "normal", storage, storageKey = "", fixture = null, reply = gameplayReply, isWord }) {
+export function createDailyPuzzleSession({ game, mode = "normal", storage, storageKey = "", fixture = null, reply = gameplayReply, isWord, day = 0, analytics = track }) {
     const lineMode = mode === "line";
     const answer = game.word.toUpperCase();
     const requiredMoves = placedMoveCount(answer);
@@ -52,6 +53,11 @@ export function createDailyPuzzleSession({ game, mode = "normal", storage, stora
     if (fixture?.autoSubmit) {
         state.statuses[0] = scoreWord(state.guesses[0], answer);
         state.actionHistory[0] = structuredClone(state.actions);
+    }
+    function report(event, properties = {}, suffix = '') {
+        if (fixture) return;
+        try { analytics(event, { puzzle_id: game.puzzleId, day, mode, ...properties }, `${storageKey || `${day}:${game.puzzleId}:${mode}`}${suffix}`); }
+        catch { /* Analytics is never part of gameplay correctness. */ }
     }
 
     function apply(uci) {
@@ -101,6 +107,7 @@ export function createDailyPuzzleSession({ game, mode = "normal", storage, stora
             || (lineMode ? state.actions.length >= requiredMoves : state.guesses[state.currentRow].length >= 5)) return false;
         clearGuidance();
         const playerColor = chess.turn();
+        report('puzzle_started');
         const index = state.actions.length;
         const moveCorrect = isCanonicalPlayerMove(game.moves, state.actions, uci);
         if (isExtraPlayerMove(game.moves, state.actions, uci)) state.extraMoves += 1;
@@ -163,6 +170,9 @@ export function createDailyPuzzleSession({ game, mode = "normal", storage, stora
         for (let i = 0; i < guess.length; i++) state.keyStatuses[guess[i]] = Math.max(state.keyStatuses[guess[i]] ?? -1, result[i]);
         state.solved = isSolvedGuess(result, guess, state.actions);
         state.completed = state.solved || state.currentRow === state.guesses.length - 1;
+        const metrics = { attempt: state.currentRow + 1, solved: state.solved, extra_moves: state.extraMoves };
+        report('guess_submitted', metrics, `:row:${state.currentRow}`);
+        if (state.completed) report('puzzle_finished', metrics);
         if (!state.completed) {
             if (result.every(x => x === 2)) state.message = "Word right. Replay it with the right board moves.";
             state.currentRow += 1; state.actions = []; state.mated = false; state.terminal = false;
@@ -181,6 +191,7 @@ export function createDailyPuzzleSession({ game, mode = "normal", storage, stora
             key = key.toUpperCase();
             const word = state.guesses[state.currentRow];
             if (word.length >= 5) { publish(); return; }
+            report('puzzle_started');
             if (FILE_LETTERS.includes(key)) {
                 if (lineMode) {
                     const placed = placeQueuedLetter(word, state.actions, key);

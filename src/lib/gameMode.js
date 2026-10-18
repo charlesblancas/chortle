@@ -1,4 +1,5 @@
 import { safeStorage } from './gameStorage.js';
+import { track } from './analytics.js';
 
 export const MODE_PREFERENCE_KEY = 'chortle:game-mode-v1';
 let sessionMode;
@@ -10,6 +11,7 @@ export function saveGameMode(mode) {
 export function switchGameMode(event, mode) {
     // Remount in this tab rather than throwing away the storage fallback on reload.
     saveGameMode(mode);
+    track('mode_changed', { mode });
     if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
     event.preventDefault();
     window.dispatchEvent(new CustomEvent('game-mode-changed', { detail: mode }));
