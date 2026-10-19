@@ -12,7 +12,6 @@
     export let solutionMoves = [];
     export let solved = false;
     export let extraMoves = 0;
-    export let lineMode = false;
     export let day;
     export let attempts;
     export let maxAttempts = 4;
@@ -45,7 +44,7 @@
         }).filter(Boolean).join("\n");
     }
     $: extraMovesMessage = solved && extraMoves === 0 ? "Perfect game! No extra moves." : `Extra moves: ${extraMoves}`;
-    $: shareMessage = `CHORTLE BETA${lineMode ? " · LINE MODE" : ""} #${String(day).padStart(4, "0")} ${solved ? attempts : "X"}/${maxAttempts}\nhttps://chortle.charlesblancas.com\n${gameSummary}\n${extraMovesMessage}`;
+    $: shareMessage = `CHORTLE BETA #${String(day).padStart(4, "0")} ${solved ? attempts : "X"}/${maxAttempts}\nhttps://chortle.charlesblancas.com\n${gameSummary}\n${extraMovesMessage}`;
     $: shareTitle = `CHORTLE BETA #${String(day).padStart(4, "0")}`;
 
     function fallbackCopy(text) {
@@ -90,12 +89,12 @@
                 manualCopy?.select();
             }
         }
-        if (copied) track('share_completed', { day, mode: lineMode ? 'line' : 'normal', method: 'clipboard' });
+        if (copied) track('share_completed', { day, method: 'clipboard' });
     }
 
     async function shareResult() {
         if (sharing) return;
-        track('share_requested', { day, mode: lineMode ? 'line' : 'normal', method: useNativeShare ? 'native' : 'clipboard' });
+        track('share_requested', { day, method: useNativeShare ? 'native' : 'clipboard' });
         sharing = true;
         shareStatus = "";
         copyFailed = false;
@@ -113,7 +112,7 @@
                 text: shareMessage,
             });
             shareStatus = "Result shared.";
-            track('share_completed', { day, mode: lineMode ? 'line' : 'normal', method: 'native' });
+            track('share_completed', { day, method: 'native' });
         } catch (error) {
             // Canceling the native sheet is an expected user action, not an
             // error. Other failures use the clipboard/manual-copy fallback.
@@ -127,7 +126,7 @@
 </script>
 
 <Modal show={$gameOver && !solutionViewing && !$showInstructions} labelledBy="result-title">
-    <p class="eyebrow">Puzzle {String(day).padStart(4, "0")}{lineMode ? " · Line mode" : ""}</p>
+    <p class="eyebrow">Puzzle {String(day).padStart(4, "0")}</p>
     <h1 id="result-title">{solved ? `Solved in ${attempts}/${maxAttempts}` : "Out of attempts"}</h1>
     <p class="answer">Today’s answer: <strong>{word}</strong></p>
     <p class="summary" aria-label="Result grid">{gameSummary}</p>

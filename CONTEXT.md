@@ -14,8 +14,8 @@ the position.
 
 ## Daily puzzle session
 
-A player's attempts at one daily puzzle in Classic or Line mode, including the
-word guesses, chess moves, feedback, and eventual result.
+A player's attempts at one daily puzzle, including the word guesses, queued
+chess moves, feedback, and eventual result.
 
 ## Canonical solution line
 

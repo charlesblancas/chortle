@@ -40,8 +40,8 @@ test('only explicit events and allowlisted scalar properties reach the correct r
     assert.equal(payload.properties.$process_person_profile, false);
     assert.equal(payload.properties.attempt, 2);
     assert.doesNotMatch(options.body, /STAFF|secret|private|a1a2/);
-    client.capture('mode_changed', { mode: 'invalid' });
-    assert.equal(requests[1].payload.properties.mode, undefined);
+    assert.equal(client.capture('mode_changed', { mode: 'invalid' }), false);
+    assert.equal(payload.properties.mode, undefined);
 });
 
 test('deduplication survives reload; event attempts are bounded and failed delivery is not retried', async () => {
@@ -75,7 +75,7 @@ test('daily session emits one start, guess and finish attempt; restored results 
     const session = createDailyPuzzleSession(options);
     assert.equal(requests.length, 0);
     await session.play('f7g7');
-    for (const key of 'IZZY') session.input(key);
+    for (const key of 'FIZZY') session.input(key);
     session.input('Enter');
     assert.deepEqual(requests.map(r => r.payload.event), ['puzzle_started', 'guess_submitted', 'puzzle_finished']);
     assert.equal(requests.at(-1).payload.properties.solved, true);
@@ -89,7 +89,7 @@ test('broken analytics adapters and fixture sessions do not affect gameplay', as
     const fixture = FIXTURES.find(f => f.id === 'player-mate-entry');
     const session = createDailyPuzzleSession({ game: fixture.game, isWord: () => true, analytics: () => { throw Error('unavailable'); } });
     await session.play('f7g7');
-    for (const key of 'IZZY') session.input(key);
+    for (const key of 'FIZZY') session.input(key);
     session.input('Enter');
     assert.equal(session.snapshot().solved, true);
     session.destroy();

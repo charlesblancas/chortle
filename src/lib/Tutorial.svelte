@@ -7,6 +7,7 @@
     import { createTutorialSession } from "./tutorialSession.js";
     import { tutorialLesson as lesson } from "./tutorialLesson.js";
     import { track } from "./analytics.js";
+    import QueuedChessBoard from "./QueuedChessBoard.svelte";
 
     export let pieceSet = "cburnett";
     export let active = true;
@@ -21,6 +22,7 @@
     $: step = state.step;
     $: arrow = step.kind === "move" ? { orig: step.uci.slice(0, 2), dest: step.uci.slice(2, 4), brush: "blue" } : null;
     $: explanation = step.kind === "explain" || step.kind === "new-row";
+    $: placedMoves = [...state.rows[state.row].word].filter(letter => /^[A-H]$/.test(letter)).length;
 
     function update(accepted) {
         state = session.getSnapshot();
@@ -68,9 +70,11 @@
         {/each}
     </div>
     <div class="practice-board">
+        <QueuedChessBoard actions={state.rows[state.row].actions} requiredMoves={3} {placedMoves} canPlace={(action) => step.kind === "key" && step.key === action.letter} undoDisabled on:place={(event) => input(event.detail)}>
         {#key `${boardReset}:${state.index}`}
-            <Chess fen={lesson.fen} replay playable replayFen={state.fen} replayMove={state.lastMove} replayArrow={arrow} disabled={step.kind !== "move"} idPrefix="tutorial-chess" {pieceSet} on:replayMove={(event) => update(session.move(event.detail.uci))} on:preview={(event) => preview = event.detail.letter} />
+            <Chess fen={lesson.fen} replay playable replayFen={state.fen} replayMove={state.lastMove} replayArrow={arrow} disabled={step.kind !== "move"} idPrefix="tutorial-chess" {pieceSet} on:replayMove={(event) => update(session.move(event.detail.uci))} />
         {/key}
+        </QueuedChessBoard>
     </div>
     {#if !explanation && step.kind !== "complete"}
         <Keyboard on:key={(event) => input(event.detail.key)} />
@@ -90,6 +94,7 @@
 </section>
 
 <style>
+    .practice-board { width:min(100%, 27rem); margin-inline:auto; }
     .tutorial { --guess-tile-size: 2.3rem; --guess-letter-size: 1.1rem; --guess-move-size: 0.42rem; --mobile-chess-width: min(22rem, calc(100dvh - 29rem)); --mobile-key-height: 1.8rem; display: flex; flex-direction: column; gap: 0.45rem; }
     header { display: flex; align-items: start; justify-content: space-between; border-bottom: 1px solid var(--ink); padding-bottom: 0.4rem; padding-right: 3rem; }
     h1 { margin: 0.18rem 0 0; font: 700 1.7rem/1 var(--display); letter-spacing: -0.035em; }
@@ -101,7 +106,7 @@
     .practice-rows { display: flex; flex-direction: column; gap: 0.25rem; align-items: center; }
     .practice-row { position: relative; }
     .tile-marker { position: absolute; width: var(--guess-tile-size); height: var(--guess-tile-size); top: 0; outline: 3px solid var(--burgundy); outline-offset: 3px; box-shadow: 0 0 0 3px var(--panel); box-sizing: border-box; pointer-events: none; }
-    .practice-board :global(.chess) { margin-top: 0.1rem; width: min(100%, max(7rem, calc(var(--mobile-chess-width) - var(--history-height)))); }
+    .practice-board :global(.chess) { margin-top: 0.1rem; width: min(100%, max(6rem, calc(var(--mobile-chess-width) - var(--history-height)))); }
     .practice-board :global(.board-grid) { padding-bottom: 1.1rem; }
     .practice-board :global(.file-labels) { height: 1rem; font-size: 0.65rem; }
     .tutorial :global(.keyboard) { padding: 0.2rem 0; margin: 0; }

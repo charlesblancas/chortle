@@ -13,7 +13,10 @@ test("iPhone 15 gameplay interactive tutorial uses real feedback without changin
     await page.evaluate(() => localStorage.setItem("chortle:line-invitation-v1", "1"));
     const tutorial = page.locator(".tutorial");
     await expect(tutorial).toBeVisible();
-    const stored = await page.evaluate(() => JSON.stringify({ ...localStorage }));
+    const queueBounds = await tutorial.locator('.line-controls').boundingBox();
+    const boardBounds = await tutorial.locator('.board').boundingBox();
+    expect(queueBounds.x + queueBounds.width).toBeLessThanOrEqual(boardBounds.x);
+    const stored = await page.evaluate(() => ({ ...localStorage }));
     await expect(page.getByRole("dialog")).toHaveCount(1);
     for (const step of tutorialLesson.steps.slice(0, -1)) {
         await expect(tutorial.locator(".coach")).toContainText(step.text);
@@ -41,7 +44,7 @@ test("iPhone 15 gameplay interactive tutorial uses real feedback without changin
             if (isMobile) await tutorial.getByRole("button", { name: new RegExp(`^${step.key}(?:,|:)`) }).click();
             else await page.keyboard.press(step.key.toLowerCase());
         } else if (step.kind === "undo") {
-            await expect(tutorial.locator(".practice-row").last().locator(".letter")).toHaveText(["B", "L", "E", "E", "D"]);
+            await expect(tutorial.locator(".practice-row").last().locator(".letter")).toHaveText(["B", "L", "E", "E", "R"]);
             await expect(tutorial.getByRole("button", { name: "Undo", exact: true })).toHaveCount(0);
             if (isMobile) await tutorial.getByRole("button", { name: /^Backspace/ }).click();
             else await page.keyboard.press("Backspace");
@@ -64,8 +67,8 @@ test("iPhone 15 gameplay interactive tutorial uses real feedback without changin
         const saved = { ...localStorage };
         delete saved["chortle:tutorial-completed-v1"];
         delete saved["chortle:instructions-seen-v1"];
-        return JSON.stringify(saved);
-    })).toBe(stored);
+        return saved;
+    })).toEqual(stored);
     expect(await page.evaluate(() => localStorage.getItem("chortle:tutorial-completed-v1"))).toBe("1");
     // Let Chessground's resize observer finish positioning pieces after the
     // keyboard leaves the completed lesson, before taking the visual artifact.

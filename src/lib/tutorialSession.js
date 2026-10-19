@@ -57,8 +57,8 @@ export function createTutorialSession(lesson) {
             if (step.reply) board.move({ from: step.reply.slice(0, 2), to: step.reply.slice(2, 4), promotion: step.reply[4] });
         } catch { return reject(); }
         history.push(before);
-        const action = { uci, reply: step.reply || "", moveCorrect: isCanonicalPlayerMove(lesson.moves, rows[row].actions, uci) };
-        rows[row] = { ...rows[row], word: rows[row].word + uci[0].toUpperCase(), actions: [...rows[row].actions, action] };
+        const action = { letter: uci[0].toUpperCase(), uci, reply: step.reply || "", moveCorrect: isCanonicalPlayerMove(lesson.moves, rows[row].actions, uci) };
+        rows[row] = { ...rows[row], word: rows[row].word + (step.kind === 'shortcut' ? action.letter : ''), actions: [...rows[row].actions, action] };
         fen = board.fen();
         lastMove = step.reply || uci;
         return advance();
@@ -77,16 +77,15 @@ export function createTutorialSession(lesson) {
             return known === step.uci ? playMove(known) : reject();
         }
         if (step.kind === "key" && value.toUpperCase() === step.key) {
+            const placed = [...rows[row].word].filter(letter => /^[A-H]$/.test(letter)).length;
+            if (/^[A-H]$/.test(step.key) && rows[row].actions[placed]?.letter !== step.key) return reject();
             history.push({ fen, lastMove, word: rows[row].word, actions: [...rows[row].actions] });
             rows[row] = { ...rows[row], word: rows[row].word + step.key };
             return advance();
         }
         if (step.kind === "undo" && value === "Backspace") {
-            const previous = history.pop();
-            if (!previous) return reject();
-            fen = previous.fen;
-            lastMove = previous.lastMove;
-            rows[row] = { ...rows[row], word: previous.word, actions: previous.actions };
+            if (!rows[row].word) return reject();
+            rows[row] = { ...rows[row], word: rows[row].word.slice(0, -1) };
             return advance();
         }
         if (step.kind === "submit" && value === "Enter" && rows[row].word.length === 5) {

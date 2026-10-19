@@ -3,7 +3,6 @@
     import Key from "./Key.svelte";
 
     export let keyStatuses = {};
-    export let queuedMoves = false;
 
     const topRow = ["q", "w", "e", "r", "t", "y", "u", "i", "o", "p"];
     const middleRow = ["a", "s", "d", "f", "g", "h", "j", "k", "l"];
@@ -13,18 +12,18 @@
 <div class="keyboard" aria-label="Letter and action keyboard">
     <div class="row row-top">
         {#each topRow as key}
-            <Key {key} {queuedMoves} status={keyStatuses[key.toUpperCase()] ?? -1} boardKey={"abcdefgh".includes(key)} on:key />
+            <Key {key} status={keyStatuses[key.toUpperCase()] ?? -1} boardKey={"abcdefgh".includes(key)} on:key />
         {/each}
     </div>
     <div class="row row-middle">
         {#each middleRow as key}
-            <Key {key} {queuedMoves} status={keyStatuses[key.toUpperCase()] ?? -1} boardKey={"abcdefgh".includes(key)} on:key />
+            <Key {key} status={keyStatuses[key.toUpperCase()] ?? -1} boardKey={"abcdefgh".includes(key)} on:key />
         {/each}
     </div>
 
     <div class="row row-bottom">
         {#each bottomRow as key}
-            <Key {key} {queuedMoves} status={keyStatuses[key.toUpperCase()] ?? -1} boardKey={"abcdefgh".includes(key)} on:key />
+            <Key {key} status={keyStatuses[key.toUpperCase()] ?? -1} boardKey={"abcdefgh".includes(key)} on:key />
         {/each}
     </div>
 </div>

@@ -9,7 +9,7 @@ function savedRow(rows = 4, correct = false) {
         letter: uci[0].toUpperCase(), uci, reply: line[index * 2 + 2] || '', moveCorrect: correct,
     }));
     return {
-        guesses: Array(rows).fill(game.word.toUpperCase()),
+        mode: 'line', guesses: Array(rows).fill(game.word.toUpperCase()),
         statuses: Array.from({ length: rows }, (_, index) => Array(5).fill(index === rows - 1 ? -1 : 2)),
         currentRow: rows - 1, actions,
         actionHistory: Array.from({ length: rows }, (_, index) => index === rows - 1 ? [] : actions),
@@ -20,7 +20,7 @@ function savedRow(rows = 4, correct = false) {
 test.describe('iPhone 15 gameplay end state', () => {
 for (const rows of [4, 5]) {
     test(`correct word with wrong chess line loses on attempt ${rows} and can analyze after reload`, async ({ page }) => {
-        const key = gameStorageKey(1, games[0]);
+        const key = gameStorageKey(1, games[0]) + ":line";
         await page.addInitScript(({ key, state }) => {
             if (!localStorage.getItem(key)) localStorage.setItem(key, JSON.stringify(state));
             Object.defineProperty(navigator, 'clipboard', { configurable: true, value: {
@@ -60,7 +60,7 @@ test('an exact word with wrong moves before the final attempt starts a fresh row
     state.actionHistory = Array.from({ length: 4 }, () => []);
     state.currentRow = 0;
     await page.addInitScript(({ key, state }) => localStorage.setItem(key, JSON.stringify(state)), {
-        key: gameStorageKey(1, games[0]), state,
+        key: gameStorageKey(1, games[0]) + ":line", state,
     });
     await page.goto('/?day=1');
     await page.getByRole('button', { name: 'Understood' }).click();
@@ -74,7 +74,7 @@ test('an exact word with wrong moves before the final attempt starts a fresh row
 test('a final-attempt win stays won after analysis and has a complete share grid', async ({ page }) => {
     await page.addInitScript(({ key, state }) => {
         if (!localStorage.getItem(key)) localStorage.setItem(key, JSON.stringify(state));
-    }, { key: gameStorageKey(1, games[0]), state: savedRow(4, true) });
+    }, { key: gameStorageKey(1, games[0]) + ":line", state: savedRow(4, true) });
     await page.goto('/?day=1');
     await page.getByRole('button', { name: 'Understood' }).click();
     await page.keyboard.press('Enter');
@@ -93,15 +93,13 @@ test('an orphaned replay-open preference cannot hide an unfinished game result',
             localStorage.setItem(`chortle:replay-open:${key}`, 'open');
             sessionStorage.setItem('end-state-seeded', '1');
         }
-    }, gameStorageKey(1, games[0]));
+    }, gameStorageKey(1, games[0]) + ":line");
     await page.goto('/?day=1');
     await page.getByRole('button', { name: 'Understood' }).click();
     await expect(page.locator('.live-play')).toBeVisible();
-    expect(await page.evaluate(key => localStorage.getItem(`chortle:replay-open:${key}`), gameStorageKey(1, games[0]))).toBeNull();
-    for (const word of ['jolly', 'intro', 'irons', 'irony']) {
-        await page.keyboard.type(word);
-        await page.keyboard.press('Enter');
-    }
+    expect(await page.evaluate(key => localStorage.getItem(`chortle:replay-open:${key}`), gameStorageKey(1, games[0]) + ":line")).toBeNull();
+    await page.evaluate(({ key, state }) => localStorage.setItem(key, JSON.stringify(state)), { key: gameStorageKey(1, games[0]) + ':line', state: { ...savedRow(), completed: true, solved: false, statuses: Array.from({length:4}, () => [0,0,0,0,0]) } });
+    await page.goto('/?day=1');
     await expect(page.getByRole('dialog', { name: 'Out of attempts' })).toBeVisible();
     await page.reload();
     await expect(page.getByRole('dialog', { name: 'Out of attempts' })).toBeVisible();
@@ -110,10 +108,8 @@ test('an orphaned replay-open preference cannot hide an unfinished game result',
 test('a lost game can analyze the solution and return to its unchanged result', async ({ page }) => {
     await page.goto('/?fixture=duplicate-score');
     await page.getByRole('button', { name: 'Understood' }).click();
-    for (const word of ['jolly', 'intro', 'irons', 'irony']) {
-        await page.keyboard.type(word);
-        await page.keyboard.press('Enter');
-    }
+    await page.evaluate(({ key, state }) => localStorage.setItem(key, JSON.stringify(state)), { key: gameStorageKey(1, games[0]) + ':line', state: { ...savedRow(), completed: true, solved: false, statuses: Array.from({length:4}, () => [0,0,0,0,0]) } });
+    await page.goto('/?day=1');
     const result = page.getByRole('dialog', { name: 'Out of attempts' });
     await expect(result).toBeVisible();
     await result.getByRole('button', { name: 'View solution' }).click();

@@ -10,7 +10,7 @@ export const FIXTURES = [
         },
         initialGuess: "E",
         initialActions: [{ letter: "E", uci: "e2e4", reply: "g8f6", moveCorrect: true }],
-        instructions: "The E tile is preloaded. Make the G move from the board, then type R, make the E move, and finish with T.",
+        instructions: "The E tile is preloaded. Queue the G and E moves, then type GRET to finish the word.",
     },
     {
         id: "duplicate-score",
@@ -38,18 +38,18 @@ export const FIXTURES = [
             { letter: "G", uci: "g2g4", reply: "d8h4", moveCorrect: true, mated: true },
         ],
         mated: true,
-        instructions: "The line is preloaded through Qh4 mate. Backspace should undo G and reopen the board so you can play another move.",
+        instructions: "The line is preloaded through Qh4 mate. Undo move should take back G and reopen the board so you can play another move.",
     },
     {
         id: "player-mate-entry",
         label: "Player checkmate word entry",
-        description: "Checkmate with Qg7, then type I. The board is finished, but the word must remain editable.",
+        description: "Checkmate with Qg7, then place F and type I. The board is finished, but the word must remain editable.",
         game: {
             fen: "7k/p4Q2/5K2/8/8/8/8/8 b - - 0 1",
             moves: "a7a6 f7g7",
             word: "fizzy",
         },
-        instructions: "Move the queen from f7 to g7 for checkmate, then type I to keep completing FIZZY.",
+        instructions: "Move the queen from f7 to g7 for checkmate, then type FIZZY using the queued F.",
     },
     {
         id: "promotion-state",

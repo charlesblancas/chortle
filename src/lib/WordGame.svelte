@@ -13,10 +13,8 @@
     import { browserStorage, gameStorageKey, removeSavedGame, safeStorage } from "./gameStorage";
     import { onMount, onDestroy, tick } from "svelte";
     import { createDailyPuzzleSession } from "./dailyPuzzleSession.js";
-    import { preferredGameMode } from "./gameMode.js";
-    import { formatUciMove } from "./chessNotation.js";
+    import QueuedChessBoard from "./QueuedChessBoard.svelte";
     import { fitGameplayViewport } from "./fitGameplayViewport.js";
-    const lineMode = preferredGameMode() === "line";
 
     export let fixture = null;
     export let dayOverride = NaN;
@@ -31,8 +29,9 @@
     const game = fixture?.game || dailyGame;
     const answer = game.word.toUpperCase();
     const solutionMoves = playerMoves(game.moves);
-    const storageKey = gameStorageKey(selectedDay, game) + (lineMode ? ":line" : "");
-    const session = createDailyPuzzleSession({ game, mode: lineMode ? "line" : "normal", storage, storageKey, fixture, day: selectedDay, isWord: word => possibilities.includes(word) });
+    // Keep the existing queue-game namespace; legacy direct-entry saves stay intact.
+    const storageKey = gameStorageKey(selectedDay, game) + ":line";
+    const session = createDailyPuzzleSession({ game, storage, storageKey, legacyStorageKey: gameStorageKey(selectedDay, game), fixture, day: selectedDay, isWord: word => possibilities.includes(word) });
     $: ({ guesses, statuses, currentRow, actions, actionHistory, keyStatuses, mated, terminal, solved, extraMoves,
         message, highlightFile, thinking: engineThinking, promotionPending, requiredMoves, restoredCompleted } = $session);
     $: ROWS = guesses.length;
@@ -130,7 +129,7 @@
 
     function focusLineInput(event) {
         // Keep DOM focus concerns outside the session.
-        if (lineMode && (event?.detail.keyboard || document.activeElement?.closest('.square-controls'))) tick().then(() => lineStatus?.focus());
+        if (event?.detail.keyboard || document.activeElement?.closest('.square-controls')) tick().then(() => lineStatus?.focus());
     }
     function undoBoardMove() {
         if ($showInstructions || $gameOver) return;
@@ -160,10 +159,10 @@
     }
 </script>
 
-<Instructions {pieceSet} canOfferInvitation={hydrated && !restoredCompleted && !fixture?.autoSubmit} />
+<Instructions {pieceSet} />
 <div class="meta"><span>Puzzle {String(selectedDay).padStart(4, "0")}</span><span>{dateLabel}</span><span>Attempt {currentRow + 1}/{ROWS}</span></div>
-<GameOver word={answer} {statuses} {guesses} {actionHistory} {solutionMoves} {solved} {extraMoves} {lineMode} day={selectedDay} attempts={currentRow + 1} maxAttempts={ROWS} {solutionViewing} on:viewSolution={openSolution} on:reset={resetDebugGame} />
-<div class="game-play" use:fitGameplayViewport class:line-mode={lineMode} class:history-compact={currentRow > 0} class:four-guesses={ROWS === 4} class:solution-board={$gameOver}>
+<GameOver word={answer} {statuses} {guesses} {actionHistory} {solutionMoves} {solved} {extraMoves} day={selectedDay} attempts={currentRow + 1} maxAttempts={ROWS} {solutionViewing} on:viewSolution={openSolution} on:reset={resetDebugGame} />
+<div class="game-play" use:fitGameplayViewport class:history-compact={currentRow > 0} class:four-guesses={ROWS === 4} class:solution-board={$gameOver}>
     <div class="guesses">
         {#each guesses as guess, index}
             <div class="guess-row" class:active-row={index === currentRow} class:history-row={index < currentRow} class:unused-row={index > currentRow}>
@@ -176,25 +175,10 @@
         <SolutionViewer fen={game.fen} movesString={game.moves} {pieceSet} {replayStateKey} interactive={solutionViewing && !$showInstructions} on:close={closeSolution} />
     {:else}
         <div class="live-play">
-            <div class="board-with-line" class:has-line={lineMode}>
-            <Chess bind:this={gameBoard} fen={game.fen} {session} position={$session} {mated} {terminal} {pieceSet} disabled={$showInstructions || $session.boardDisabled} {highlightFile} on:commit={focusLineInput} on:promotion={(event) => session.setPromotionPending(event.detail.active)} on:preview={(event) => previewLetter = lineMode ? "" : event.detail.letter} />
-            {#if lineMode}
-                <div class="line-controls" aria-label="Line mode move queue">
-                    <div class="move-queue">
-                        {#each actions as action, index}<button type="button" class:placed={index < $session.placedMoves} aria-label={`Place queued ${action.letter}, move ${index + 1}, ${formatUciMove(action.uci)}`} title={formatUciMove(action.uci)} disabled={index !== $session.placedMoves || guesses[currentRow].length >= 5 || engineThinking || promotionPending || $showInstructions} on:click={(event) => { input(action.letter); event.currentTarget.blur(); }}><span class="queue-index">{index + 1}</span><span class="queue-letter">{action.letter}</span><small class="queue-notation">{formatUciMove(action.uci)}</small></button>{/each}
-                        {#each Array(Math.max(0, requiredMoves - actions.length)) as _, index}<div class="empty-move" aria-label={`Move ${actions.length + index + 1}, not played`}><span class="queue-index">{actions.length + index + 1}</span><span aria-hidden="true">—</span></div>{/each}
-                    </div>
-                    <button type="button" class="undo-move" aria-label="Undo move" disabled={!actions.length || engineThinking || promotionPending || $showInstructions} on:click={(event) => { undoBoardMove(); event.currentTarget.blur(); }}>↶ <span>Undo move</span></button>
-                    <span class="line-count" bind:this={lineStatus} tabindex="-1" role="status">Line mode · {actions.length}/{requiredMoves} moves</span>
-                </div>
-            {/if}
-            </div>
-            {#if guesses[currentRow].length >= 5 && !$gameOver}
-                <p class="rule row-ready" class:message-active={Boolean(message)} aria-hidden={Boolean(message)}>Row complete · press Enter to submit or Backspace to revise.</p>
-            {:else}
-                <p class="rule">{lineMode ? "Queue moves, then place their letters in order." : "A–H are played from the board."}</p>
-            {/if}
-            <Keyboard {keyStatuses} queuedMoves={lineMode} on:key={(event) => input(event.detail.key)} />
+            <QueuedChessBoard {actions} {requiredMoves} placedMoves={$session.placedMoves} disabled={guesses[currentRow].length >= 5 || engineThinking || promotionPending || $showInstructions} undoDisabled={engineThinking || promotionPending || $showInstructions} bind:statusElement={lineStatus} on:place={(event) => input(event.detail)} on:undo={undoBoardMove}>
+            <Chess bind:this={gameBoard} fen={game.fen} {session} position={$session} {mated} {terminal} {pieceSet} disabled={$showInstructions || $session.boardDisabled} {highlightFile} on:commit={focusLineInput} on:promotion={(event) => session.setPromotionPending(event.detail.active)} />
+            </QueuedChessBoard>
+            <Keyboard {keyStatuses} on:key={(event) => input(event.detail.key)} />
         </div>
     {/if}
 </div>
@@ -208,45 +192,13 @@
         --guess-letter-size: 0.78rem !important;
         --guess-move-size: 0.36rem !important;
     }
-    .board-with-line.has-line { display:grid; grid-template-columns:clamp(2.75rem, 9vw, 3.65rem) minmax(0,1fr); gap:.75rem; align-items:start; margin-top:.5rem; }
-    /* Desktop rank labels extend 1.65rem left of the board. Keep their gutter
-       clear of the move tiles; phones already reserve it inside board-grid. */
-    @media (min-width:511px) { .board-with-line.has-line { column-gap:1.9rem; } }
-    .has-line :global(.chess) { grid-column:2; grid-row:1; width:100%; margin-top:0; min-width:0; }
-    .line-controls { grid-column:1; grid-row:1; display:flex; flex-direction:column; gap:.35rem; margin:0; min-width:0; }
-    .move-queue { display:flex; flex-direction:column; gap:.25rem; }
-    .move-queue button, .empty-move { position:relative; width:100%; height:clamp(1.8rem, min(4.8vh, calc(var(--viewport-board-limit, 500px) / 7)), 3.65rem); min-height:0; padding:.35rem .05rem .2rem; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:.15rem; border:1px solid var(--line); }
-    .empty-move { color:var(--line); font-size:1.25rem; }
-    .move-queue button { border-color:var(--burgundy); color:var(--burgundy); background:#702d3108; }
-    .move-queue button:disabled { opacity:1; }
-    .move-queue button.placed { color:var(--green); border-color:var(--green); background:#00796b08; }
-    .queue-index { position:absolute; top:.15rem; left:.2rem; font:400 .4rem/1 var(--mono); color:var(--muted); }
-    .queue-letter { font-size:1.3rem; line-height:1; }
-    .queue-notation { font:700 clamp(.36rem, 1.45vw, .48rem)/1 var(--mono); white-space:nowrap; }
-    .undo-move { width:100%; padding:.6rem .05rem; font-size:.5rem; line-height:1.2; border-color:var(--line); }
-    .line-count { color:var(--muted); font-size:.46rem; line-height:1.4; text-align:center; }
-    .line-count:focus { outline: none; }
-    @media (max-height:700px) {
-        .line-controls { gap:.15rem; }
-        .move-queue { gap:.1rem; }
-        .move-queue button, .empty-move { height:min(4.8vh, calc(var(--viewport-board-limit, 500px) / 8)); padding:.15rem .05rem; gap:.05rem; }
-        .queue-letter { font-size:min(1.1rem, 2.8vh); }
-        .queue-index { font-size:.32rem; top:.08rem; left:.1rem; }
-        .queue-notation { font-size:.36rem; }
-        .undo-move { padding:.3rem .05rem; }
-        .line-count { font-size:.4rem; line-height:1.2; }
-    }
     .meta { display: flex; justify-content: center; gap: 0.55rem; padding: 0.5rem 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); color: var(--muted); font: 700 0.68rem/1 var(--mono); font-variant-numeric: tabular-nums; letter-spacing: 0.04em; text-align: center; text-transform: uppercase; }
     .meta span + span::before { content: "·"; margin-right: 0.55rem; color: var(--burgundy); }
-    .rule { max-width: 30rem; margin: 0.6rem auto 0; padding-top: 0.45rem; border-top: 1px solid var(--line); text-align: center; color: var(--muted); font: 700 0.7rem/1.25 var(--sans); letter-spacing: 0.04em; text-transform: uppercase; }
-    .rule.row-ready { display:block; color:var(--burgundy); text-transform:none; }
-    .row-ready.message-active { visibility: hidden; }
     .game-play { --mobile-chess-width: 32rem; }
     .guesses { display: flex; flex-direction: column; align-items: center; gap: .25rem; margin: 0.4rem 0 0; }
     @media (max-width: 510px) {
         .meta { gap: 0.2rem; font-size: 0.56rem; }
         .meta span + span::before { margin-right: 0.2rem; }
-        .rule { display: none; }
         .guesses { gap: 0.18rem; margin-top: 0.4rem; }
         :global(.keyboard) { margin-top: 0; }
         /* Keep all rows in the grid.  Non-active rows are compressed
@@ -307,7 +259,6 @@
         .meta { padding: 0.25rem 0; }
         .guesses { gap: 0.1rem; margin-top: 0.2rem; }
         :global(.chess) { margin-top: 0.5rem; }
-        .rule { margin-top: 0.35rem; padding-top: 0.25rem; }
         :global(.keyboard) { margin-top: 0.25rem; }
     }
     @media (min-width: 511px) and (max-height: 900px) {
@@ -318,7 +269,6 @@
             --guess-tile-gap: 0.2rem;
         }
         .guesses { margin-top: 0.1rem; }
-        .rule { display: none; }
     }
     @media (min-width: 511px) and (max-height: 600px) {
         .game-play {
@@ -328,6 +278,5 @@
             --guess-tile-gap: 0.12rem;
         }
         .meta { padding: 0.08rem 0; font-size: 0.58rem; }
-        .rule { display: none; }
     }
 </style>

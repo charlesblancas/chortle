@@ -23,7 +23,7 @@ retention settings and any applicable notice/consent requirements.
 
 No SDK, session recordings, automatic pageviews, clicks, error text, URLs,
 guessed words, FENs or move histories are sent. Explicit events cover puzzle
-start, submitted guess, result, tutorial start/finish/skip, mode switch, and
+start, submitted guess, result, tutorial start/finish/skip, and
 share request/success. "Share completed" means clipboard success or native-sheet
 handoff, not proof that a post was published. Ad blockers and failed delivery
 will undercount; analytics never participates in gameplay correctness.
@@ -42,7 +42,7 @@ This is NOT an account-level spending cap: keep the account free-only and verify
 its billing configuration. This integration cannot enforce PostHog's billing.
 
 Dashboard setup: trend `puzzle_started` and `puzzle_finished`; filter results by
-`solved`; break down by `mode` and `day`; funnel tutorial_started →
+`solved`; break down by `day`; funnel tutorial_started →
 tutorial_finished and puzzle_started → puzzle_finished; retention based on
 puzzle_started. Create insights in PostHog once real events arrive.
 

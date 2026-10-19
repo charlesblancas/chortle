@@ -18,7 +18,7 @@ test('touch selection keeps the board and preview letter in sync', async ({ page
     for (let attempt = 0; attempt < 3; attempt++) {
         await tapSquare('g1');
         await expect(board.locator('square.selected')).toHaveCount(1);
-        await expect(preview).toHaveText('G');
+        await expect(preview).toHaveText('');
         await tapSquare('g1');
         await expect(board.locator('square.selected')).toHaveCount(0);
         await expect(preview).toHaveText('');
@@ -26,41 +26,44 @@ test('touch selection keeps the board and preview letter in sync', async ({ page
     // Even a blocked piece has a file preview while visibly selected.
     await tapSquare('a1');
     await expect(board.locator('square.selected')).toHaveCount(1);
-    await expect(preview).toHaveText('A');
+    await expect(preview).toHaveText('');
     await tapSquare('g1');
     await tapSquare('b1');
-    await expect(preview).toHaveText('B');
+    await expect(preview).toHaveText('');
     await expect(page.locator('[data-square="b1"]')).toHaveAttribute('aria-label', /selected starting square/);
     await tapSquare('g1');
-    await expect(preview).toHaveText('G');
+    await expect(preview).toHaveText('');
 
     // A tap outside clears the visual selection as well as its letter.
     await page.locator('.meta').tap();
     await expect(board.locator('square.selected')).toHaveCount(0);
     await expect(preview).toHaveText('');
     await tapSquare('g1');
-    await expect(preview).toHaveText('G');
+    await expect(preview).toHaveText('');
     await tapSquare('f3');
-    await expect(page.locator('.guess.active .move').nth(1)).toHaveText('G1→F3');
+    await expect(page.locator('.queue-notation').nth(1)).toHaveText('G1→F3');
+    await expect(page.getByRole('button', { name: 'Undo move', exact: true })).toBeEnabled();
+    await page.keyboard.press('g');
+    await expect(preview).toHaveText('G');
     await expect(board.locator('square.selected')).toHaveCount(0);
     await expect(page.locator('.guess.active .ghost')).toHaveCount(0);
 
     // Typing a normal letter or undoing must leave a fresh selection usable.
     await expect(page.locator('[data-square="e1"]')).toBeEnabled();
     await tapSquare('e1');
-    await expect(page.locator('.guess.active .letter').nth(2)).toHaveText('E');
+    await expect(page.locator('.guess.active .letter').nth(2)).toHaveText('');
     await page.keyboard.type('r');
     await expect(board.locator('square.selected')).toHaveCount(0);
     await expect(page.locator('.guess.active .letter').nth(2)).toHaveText('R');
     await tapSquare('e1');
-    await expect(page.locator('.guess.active .letter').nth(3)).toHaveText('E');
+    await expect(page.locator('.guess.active .letter').nth(3)).toHaveText('');
     await page.keyboard.press('Backspace');
     await expect(board.locator('square.selected')).toHaveCount(0);
     await tapSquare('e1');
-    await expect(page.locator('.guess.active .letter').nth(2)).toHaveText('E');
+    await expect(page.locator('.guess.active .letter').nth(2)).toHaveText('');
     await page.keyboard.press('Backspace');
     await tapSquare('g1');
-    await expect(preview).toHaveText('G');
+    await expect(preview).toHaveText('');
 });
 
 test('touch promotion cancellation keeps the board playable', async ({ page }) => {
@@ -81,5 +84,5 @@ test('touch promotion cancellation keeps the board playable', async ({ page }) =
     await tapRank(7);
     await tapRank(8);
     await page.getByRole('button', { name: 'Promote to Queen' }).tap();
-    await expect(page.locator('.guess.active .move').first()).toHaveText('A7→A8=Q');
+    await expect(page.locator('.queue-notation').first()).toHaveText('A7→A8=Q');
 });

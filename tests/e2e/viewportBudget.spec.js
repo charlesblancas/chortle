@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { games } from '../../src/games/final_games.js';
 
-for (const [mode, day] of [['line', 32], ['line', 581], ['normal', 32]]) {
+for (const [mode, day] of [['line', 32], ['line', 581]]) {
 test(`iPhone 15 gameplay filled ${mode} day ${day} fits breakpoint boundaries and resizes`, async ({ page }, testInfo) => {
     test.setTimeout(60_000);
     const game = games[day - 1];
@@ -65,7 +65,7 @@ test('iPhone 15 gameplay short landscape promotion controls remain visible', asy
     await expect(chooser).toHaveCount(0);
 });
 
-test('iPhone 15 gameplay Line mode unknown file keys highlight their column', async ({ page }) => {
+test('iPhone 15 gameplay Queued gameplay unknown file keys highlight their column', async ({ page }) => {
     await page.addInitScript(() => {
         for (const key of ['instructions-seen-v1', 'tutorial-completed-v1', 'line-invitation-v1']) localStorage.setItem('chortle:' + key, '1');
         localStorage.setItem('chortle:game-mode-v1', 'line');

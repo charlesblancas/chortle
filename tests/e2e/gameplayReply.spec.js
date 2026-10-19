@@ -29,7 +29,7 @@ test("debug node budget controls real Stockfish replies", async ({ page }) => {
     }
     await movePawn(3);
     expect(await page.evaluate(() => window.engineCommands)).toContain('go nodes 5000');
-    await page.getByRole('button', { name: /Backspace: remove/ }).click();
+    await page.getByRole('button', { name: 'Undo move', exact: true }).click();
     await page.locator('.debug-fixtures summary').click();
     await page.getByLabel('Stockfish reply nodes').fill('20000');
     await page.getByRole('button', { name: 'Apply', exact: true }).click();

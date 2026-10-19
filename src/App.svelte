@@ -4,8 +4,13 @@
     import { fixtureById } from "./fixtures";
     import { showInstructions } from "./stores";
     import { safeStorage } from "./lib/gameStorage";
-    import { preferredGameMode } from "./lib/gameMode.js";
-    let mode = preferredGameMode();
+    // Retire obsolete ruleset and throwaway layout-prototype bookmarks.
+    const pageUrl = new URL(window.location.href);
+    if (['mode', 'line-prototype'].some(key => pageUrl.searchParams.has(key))) {
+        if (pageUrl.searchParams.has('line-prototype')) pageUrl.searchParams.delete('variant');
+        for (const key of ['mode', 'line-prototype']) pageUrl.searchParams.delete(key);
+        window.history.replaceState(window.history.state, '', pageUrl.pathname + pageUrl.search + pageUrl.hash);
+    }
 
     const fixture = import.meta.env.DEV ? fixtureById(new URLSearchParams(window.location.search).get("fixture")) : null;
     const dayOverride = import.meta.env.DEV ? Number(new URLSearchParams(window.location.search).get("day")) : NaN;
@@ -34,9 +39,8 @@
         <button class="help action-button" type="button" aria-label={$showInstructions ? "Close instructions" : "Show instructions"} title={$showInstructions ? "Close instructions" : "Show instructions"} on:click={(event) => { toggleInstructions(); event.currentTarget.blur(); }}><span class="help-mark" aria-hidden="true">?</span></button>
     </header>
     {#if import.meta.env.DEV}<DebugFixtures selected={fixture?.id || ""} {pieceSet} on:pieceSet={selectPieceSet} />{/if}
-    {#key mode}<WordGame {fixture} {dayOverride} {pieceSet} />{/key}
+    <WordGame {fixture} {dayOverride} {pieceSet} />
 </main>
-<svelte:window on:game-mode-changed={(event) => mode = event.detail} />
 
 <style>
     main { width: min(calc(100% - 2rem), 39rem); margin: 0 auto; padding: 0.45rem 0.35rem 0; }

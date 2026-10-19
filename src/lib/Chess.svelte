@@ -322,7 +322,7 @@
         <div class="board" class:piece-set-glyph={pieceSet === "glyph"} class:piece-set-image={IMAGE_PIECE_SETS.has(pieceSet)} class:piece-set-cburnett={pieceSet === "cburnett"} style={pieceAssetStyle}>
             {#if highlightIndex >= 0}<div class="file-highlight" style={`left: ${highlightIndex * 12.5}%`}></div>{/if}
             <div class="board-visual" aria-hidden="true"><Chessground bind:this={chessground} fen={replay ? replayFen : undefined} {orientation} coordinates={false} config={{ movable: { events: { after } }, events: { select: syncSelection } }} /></div>
-            {#if mated}<div class="mate-banner" role="status">You are mated. Press Backspace to revise your last move.</div>
+            {#if mated}<div class="mate-banner" role="status">You are mated. Use Undo move to revise your line.</div>
             {:else if terminal}<div class="mate-banner" role="status">Position ended. Finish the word to submit this guess.</div>{/if}
             {#if promotionPending}
                 <div class="promotion-layer" role="presentation" on:click|stopPropagation>

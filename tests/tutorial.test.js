@@ -18,16 +18,17 @@ test("tutorial uses legal Black moves, real scoring, all split colors, and a fin
             assert.equal(new Chess(state.fen).turn(), "b", "Black owns each guided move position");
             if (state.rows[state.row].word.length === 4) beforeUndo = state.fen;
             assert.equal(session.move(step.uci), true);
+            assert.equal(session.getSnapshot().rows[state.row].word, state.rows[state.row].word, 'board moves queue without inserting letters');
         } else if (step.kind === "key" || step.kind === "shortcut") {
             const priorFen = state.fen;
             assert.equal(session.key(step.key), true);
             if (step.kind === "shortcut") assert.notEqual(session.getSnapshot().fen, priorFen, "confirmed letter plays a real move");
         }
         else if (step.kind === "undo") {
-            assert.equal(state.rows[1].word, "BLEED");
+            assert.equal(state.rows[1].word, "BLEER");
             assert.ok(possibilities.includes("bleed"));
             assert.equal(session.key("Backspace"), true);
-            assert.equal(session.getSnapshot().fen, beforeUndo);
+            assert.equal(session.getSnapshot().fen, state.fen);
             assert.equal(session.getSnapshot().rows[1].word, "BLEE");
         } else if (step.kind === "submit") {
             assert.ok(possibilities.includes(state.rows[state.row].word.toLowerCase()));

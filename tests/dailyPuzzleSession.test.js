@@ -20,11 +20,11 @@ function create(options = {}) {
 }
 function type(session, word) { for (const key of word) session.input(key); }
 
-test("Classic commits a complete word and line, persists it and restores the same result", async () => {
+test("Queued gameplay commits a complete word and line, persists it and restores the same result", async () => {
     const storage = memoryStorage();
     const session = create({ storage });
-    await session.play("e2e4"); await session.play("g1f3"); session.input("R");
-    await session.play("e1e2"); session.input("T"); session.input("Enter");
+    await session.play("e2e4"); session.input("E"); await session.play("g1f3"); session.input("G"); session.input("R");
+    await session.play("e1e2"); session.input("E"); session.input("T"); session.input("Enter");
     const state = session.snapshot();
     assert.equal(state.guesses[0], "EGRET");
     assert.equal(state.completed, true); assert.equal(state.solved, true);
@@ -34,6 +34,35 @@ test("Classic commits a complete word and line, persists it and restores the sam
     assert.deepEqual(restored.actionHistory, state.actionHistory);
     assert.equal(restored.boardFen, state.boardFen);
     session.destroy();
+});
+
+test("the default game queues moves and rejects guesses that bypass the move count", async () => {
+    const session = create();
+    type(session, 'PIOUS'); session.input('Enter');
+    assert.match(session.snapshot().message, /Play 3 chess moves/);
+    assert.equal(session.snapshot().currentRow, 0);
+    for (let i = 0; i < 5; i++) session.input('Backspace');
+    await session.play('e2e4');
+    assert.equal(session.snapshot().guesses[0], '');
+    session.input('E');
+    assert.equal(session.snapshot().guesses[0], 'E');
+    session.destroy();
+});
+
+test("completed legacy results restore without overwriting old storage", async () => {
+    const storage = memoryStorage();
+    const session = create({storage, storageKey:'old'});
+    await session.play('e2e4'); await session.play('g1f3'); await session.play('e1e2');
+    type(session, 'EGRET'); session.input('Enter');
+    const legacy = JSON.parse(storage.getItem('old')); delete legacy.mode;
+    storage.setItem('old', JSON.stringify(legacy));
+    const before = storage.getItem('old');
+    const restored = create({storage, storageKey:'new', legacyStorageKey:'old'});
+    assert.equal(restored.snapshot().completed, true);
+    assert.equal(restored.snapshot().solved, true);
+    assert.equal(storage.getItem('old'), before);
+    assert.equal(storage.getItem('new'), null);
+    session.destroy(); restored.destroy();
 });
 
 test("Line queues separately, places in order, rejects nonwords and preserves undo semantics", async () => {
@@ -87,7 +116,7 @@ test("pending replies lock every command and never replace the last durable stat
     assert.equal(session.snapshot().actions[0].pending, true);
     type(session, "T"); session.input("Backspace"); session.input("Enter"); session.undoMove();
     assert.equal(await session.play("g1f3"), false);
-    assert.equal(session.snapshot().guesses[0], "RE");
+    assert.equal(session.snapshot().guesses[0], "R");
     assert.equal(storage.getItem("daily"), durable);
     resolveReply("g8f6"); await pending;
     const saved = JSON.parse(storage.getItem("daily"));
@@ -127,19 +156,19 @@ test("off-line moves remain off-line and extra-move counting survives undo and r
     session.destroy();
 });
 
-test("green keyboard moves use the session transaction in both modes", async () => {
-    for (const mode of ["normal", "line"]) {
-        const session = create({ mode });
-        await session.play("e2e4"); if (mode === "line") session.input("E");
-        await session.play("g1f3"); if (mode === "line") session.input("G");
-        session.input("R"); await session.play("e1e2"); if (mode === "line") session.input("E");
+test("green keyboard moves use the session transaction with queue placement", async () => {
+    {
+        const session = create();
+        await session.play("e2e4"); session.input("E");
+        await session.play("g1f3"); session.input("G");
+        session.input("R"); await session.play("e1e2"); session.input("E");
         session.input("S"); session.input("Enter");
         assert.equal(session.snapshot().currentRow, 1);
         session.input("E"); await flush();
         assert.equal(session.snapshot().guesses[1], "E");
         assert.equal(session.snapshot().actions[0].uci, "e2e4");
         session.input("Backspace");
-        assert.equal(session.snapshot().actions.length, mode === "line" ? 1 : 0);
+        assert.equal(session.snapshot().actions.length, 1);
         session.destroy();
     }
 });
@@ -149,19 +178,17 @@ test("terminal player moves need no reply and ordinary letters still complete th
     const session = create({ game: fixture.game, reply: () => { throw Error("must not search mate"); } });
     await session.play("f7g7");
     assert.equal(session.snapshot().terminal, true);
-    type(session, "IZZY"); session.input("Enter");
+    type(session, "FIZZY"); session.input("Enter");
     assert.equal(session.snapshot().solved, true);
     session.destroy();
 });
 
-test("self-mate blocks Classic letters until undo, but Line placement remains editable", () => {
+test("self-mate leaves queued letters editable until board undo", () => {
     const fixture = FIXTURES.find(f => f.id === "mate-state");
-    const normal = create({ game: fixture.game, fixture });
-    normal.input("O"); assert.equal(normal.snapshot().guesses[0], "FG");
-    normal.input("Backspace"); assert.equal(normal.snapshot().mated, false);
-    assert.equal(normal.snapshot().guesses[0], "F"); normal.destroy();
-    const line = create({ game: fixture.game, fixture, mode: "line" });
-    line.input("O"); assert.equal(line.snapshot().guesses[0], "FGO"); line.destroy();
+    const session = create({ game: fixture.game, fixture });
+    session.input("O"); assert.equal(session.snapshot().guesses[0], "FGO");
+    session.undoMove(); assert.equal(session.snapshot().mated, false);
+    session.destroy();
 });
 
 test("promotion pending blocks input until chosen or cancelled; underpromotion is accepted", async () => {
@@ -205,7 +232,7 @@ test("move budget follows word letters, not surplus canonical continuation", () 
 test("snapshots cannot mutate the session and blocked storage does not prevent play", async () => {
     const session = create({ storage: { getItem() { throw Error("blocked"); }, setItem() { throw Error("blocked"); } } });
     const snapshot = session.snapshot(); snapshot.guesses[0] = "BROKE";
-    await session.play("e2e4"); assert.equal(session.snapshot().guesses[0], "E");
+    await session.play("e2e4"); assert.equal(session.snapshot().guesses[0], "");
     session.destroy();
 });
 

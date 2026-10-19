@@ -17,7 +17,7 @@ test('mouse selection and dragging keep the preview aligned with the board', asy
         await page.mouse.click(x, y);
     };
     await clickSquare('g1');
-    await expect(preview).toHaveText('G');
+    await expect(preview).toHaveText('');
     await clickSquare('g1');
     await expect(preview).toHaveText('');
     await expect(board.locator('square.selected')).toHaveCount(0);
@@ -26,10 +26,11 @@ test('mouse selection and dragging keep the preview aligned with the board', asy
     const destination = await position('f3');
     await page.mouse.move(origin.x, origin.y);
     await page.mouse.down();
-    await expect(preview).toHaveText('G');
+    await expect(preview).toHaveText('');
     await page.mouse.move(destination.x, destination.y, { steps: 8 });
     await page.mouse.up();
-    await expect(page.locator('.guess.active .move').nth(1)).toHaveText('G1→F3');
+    await expect(page.locator('.queue-notation').nth(1)).toHaveText('G1→F3');
+    await page.keyboard.press('g');
     await expect(page.locator('.guess.active .ghost')).toHaveCount(0);
     await expect(board.locator('square.selected')).toHaveCount(0);
 
@@ -38,7 +39,7 @@ test('mouse selection and dragging keep the preview aligned with the board', asy
     await expect(king).toBeEnabled();
     await king.focus();
     await page.keyboard.press('Enter');
-    await expect(page.locator('.guess.active .letter').nth(2)).toHaveText('E');
+    await expect(page.locator('.guess.active .letter').nth(2)).toHaveText('');
     await expect(board.locator('square.selected')).toHaveCount(1);
     await page.keyboard.press('Escape');
     await expect(page.locator('.guess.active .ghost')).toHaveCount(0);
@@ -47,5 +48,5 @@ test('mouse selection and dragging keep the preview aligned with the board', asy
     await page.keyboard.press('Enter');
     await page.locator('[data-square="e2"]').focus();
     await page.keyboard.press('Enter');
-    await expect(page.locator('.guess.active .move').nth(2)).toHaveText('E1→E2');
+    await expect(page.locator('.queue-notation').nth(2)).toHaveText('E1→E2');
 });

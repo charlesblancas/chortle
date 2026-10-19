@@ -10,9 +10,9 @@ test("extra moves stay hidden during play and undo", async ({ page }) => {
     await page.mouse.click(square("a", 2).x, square("a", 2).y);
     await page.mouse.click(square("a", 3).x, square("a", 3).y);
     await expect(page.locator(".meta")).not.toContainText("Extra moves");
-    await expect(page.locator(".guess.active")).toContainText("A");
+    await expect(page.locator(".queue-notation").last()).toHaveText("A2→A3");
     await expect(page.locator('.live-play .square-control[data-square="a3"]')).toBeEnabled();
-    await page.keyboard.press("Backspace");
+    await page.getByRole("button", {name:"Undo move", exact:true}).click();
     await expect(page.locator(".guess.active")).not.toContainText("A");
     await expect(page.locator(".meta")).not.toContainText("Extra moves");
 });

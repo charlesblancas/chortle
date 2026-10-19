@@ -39,7 +39,8 @@ test("iPhone 15 gameplay tutorial recovers from an unexpected move and contains 
     await square("e3");
     await expect(tutorial.locator(".coach")).toContainText("Move your knight");
     await expect(tutorial.locator(".error")).toHaveCount(0);
-    await expect(tutorial.locator(".letter").first()).toHaveText("B");
+    await expect(tutorial.locator(".letter").first()).toHaveText("");
+    await expect(tutorial.getByLabel('Chess move queue')).toContainText('B');
     await tutorial.getByRole("button", { name: "Back", exact: true }).click();
     await expect(tutorial.locator(".letter").first()).toHaveText("");
     await expect(tutorial.getByRole("button", { name: "Back", exact: true })).toBeDisabled();

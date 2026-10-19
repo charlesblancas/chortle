@@ -29,8 +29,7 @@ function lineGuessError(word, actions, requiredMoves) {
  * The view subscribes to snapshots; only this module accepts moves and replies.
  * Reply and storage adapters keep browser effects outside the session rules.
  */
-export function createDailyPuzzleSession({ game, mode = "normal", storage, storageKey = "", fixture = null, reply = gameplayReply, isWord, day = 0, analytics = track }) {
-    const lineMode = mode === "line";
+export function createDailyPuzzleSession({ game, storage, storageKey = "", legacyStorageKey = "", fixture = null, reply = gameplayReply, isWord, day = 0, analytics = track }) {
     const answer = game.word.toUpperCase();
     const requiredMoves = placedMoveCount(answer);
     const line = game.moves.split(" ");
@@ -39,7 +38,8 @@ export function createDailyPuzzleSession({ game, mode = "normal", storage, stora
     let disposed = false;
     let revision = 0;
     let guidanceTimer;
-    const saved = fixture ? null : readSavedGame(storage, storageKey);
+    const legacy = !fixture && legacyStorageKey ? readSavedGame(storage, legacyStorageKey) : null;
+    const saved = fixture ? null : readSavedGame(storage, storageKey) || (legacy?.completed ? legacy : null);
     let state = saved || {
         guesses: [fixture?.initialGuess?.toUpperCase() || "", "", "", ""],
         statuses: Array.from({ length: 4 }, () => Array(5).fill(-1)),
@@ -56,7 +56,7 @@ export function createDailyPuzzleSession({ game, mode = "normal", storage, stora
     }
     function report(event, properties = {}, suffix = '') {
         if (fixture) return;
-        try { analytics(event, { puzzle_id: game.puzzleId, day, mode, ...properties }, `${storageKey || `${day}:${game.puzzleId}:${mode}`}${suffix}`); }
+        try { analytics(event, { puzzle_id: game.puzzleId, day, ...properties }, `${storageKey || `${day}:${game.puzzleId}`}${suffix}`); }
         catch { /* Analytics is never part of gameplay correctness. */ }
     }
 
@@ -75,7 +75,7 @@ export function createDailyPuzzleSession({ game, mode = "normal", storage, stora
         return { ...structuredClone(state), requiredMoves, placedMoves: placedMoveCount(state.guesses[state.currentRow]),
             boardFen: chess.fen(), boardMove: chess.history({ verbose: true }).at(-1)?.lan || "",
             boardDisabled: state.completed || state.mated || state.terminal || state.thinking || state.promotionPending
-                || (lineMode ? state.actions.length >= requiredMoves : state.guesses[state.currentRow].length >= 5) };
+                || state.actions.length >= requiredMoves };
     }
     function publish() {
         if (disposed) return;
@@ -85,7 +85,8 @@ export function createDailyPuzzleSession({ game, mode = "normal", storage, stora
     function persist() {
         if (fixture || disposed || state.thinking) return;
         const { guesses, statuses, currentRow, actions, actionHistory, keyStatuses, mated, terminal, solved, completed, extraMoves } = state;
-        writeSavedGame(storage, storageKey, { guesses, statuses, currentRow, actions, actionHistory, keyStatuses, mated, terminal, solved, completed, extraMoves, ...(lineMode ? { mode: "line" } : {}) });
+        // Retain the old queue-format marker so existing saves remain readable.
+        writeSavedGame(storage, storageKey, { guesses, statuses, currentRow, actions, actionHistory, keyStatuses, mated, terminal, solved, completed, extraMoves, mode: "line" });
     }
     function clearGuidance() {
         clearTimeout(guidanceTimer);
@@ -104,7 +105,7 @@ export function createDailyPuzzleSession({ game, mode = "normal", storage, stora
 
     async function play(uci, placeLetter = false) {
         if (blocked() || state.terminal || state.mated || !legal(uci)
-            || (lineMode ? state.actions.length >= requiredMoves : state.guesses[state.currentRow].length >= 5)) return false;
+            || state.actions.length >= requiredMoves) return false;
         clearGuidance();
         const playerColor = chess.turn();
         report('puzzle_started');
@@ -115,7 +116,7 @@ export function createDailyPuzzleSession({ game, mode = "normal", storage, stora
         state.terminal = chess.isGameOver();
         const action = { letter: uci[0].toUpperCase(), uci, reply: "", moveCorrect, mated: false, terminal: state.terminal, pending: !state.terminal };
         state.actions.push(action);
-        if (!lineMode || placeLetter) state.guesses[state.currentRow] += action.letter;
+        if (placeLetter) state.guesses[state.currentRow] += action.letter;
         state.mated = false;
         if (state.terminal) { persist(); publish(); return true; }
         state.thinking = true;
@@ -151,16 +152,13 @@ export function createDailyPuzzleSession({ game, mode = "normal", storage, stora
     }
     function undo() {
         const guess = state.guesses[state.currentRow];
-        if (!guess) { if (lineMode) undoMove(); return; }
+        if (!guess) { undoMove(); return; }
         state.guesses[state.currentRow] = guess.slice(0, -1);
-        if (!lineMode && FILE_LETTERS.includes(guess.at(-1))) {
-            state.actions.pop(); state.mated = false; state.terminal = false; rebuild();
-        }
         persist(); publish();
     }
     function submit() {
         const guess = state.guesses[state.currentRow];
-        const error = lineMode ? lineGuessError(guess, state.actions, requiredMoves) : "";
+        const error = lineGuessError(guess, state.actions, requiredMoves);
         if (error) { state.message = error; publish(); return; }
         if (guess.length < 5) { state.message = "Not enough letters"; publish(); return; }
         if (!isWord(guess.toLowerCase())) { state.message = `${guess} not in word list`; publish(); return; }
@@ -183,17 +181,13 @@ export function createDailyPuzzleSession({ game, mode = "normal", storage, stora
     function input(key) {
         if (blocked()) return;
         clearGuidance();
-        if (state.mated && !lineMode && key !== "Backspace") {
-            state.message = "Position ended. Press Backspace to revise your last move.";
-            publish(); return;
-        }
         if (/^[A-Za-z]$/.test(key)) {
             key = key.toUpperCase();
             const word = state.guesses[state.currentRow];
             if (word.length >= 5) { publish(); return; }
             report('puzzle_started');
             if (FILE_LETTERS.includes(key)) {
-                if (lineMode) {
+                {
                     const placed = placeQueuedLetter(word, state.actions, key);
                     if (placed !== null) { state.guesses[state.currentRow] = placed; persist(); publish(); return; }
                     if (placedMoveCount(word) !== state.actions.length || state.actions.length >= requiredMoves) {
@@ -203,7 +197,7 @@ export function createDailyPuzzleSession({ game, mode = "normal", storage, stora
                     }
                 }
                 const known = confirmedMoveShortcut(key, state.actions, state.guesses, state.statuses, state.actionHistory);
-                if (known && !state.terminal && legal(known)) { void play(known, lineMode); return; }
+                if (known && !state.terminal && legal(known)) { void play(known, true); return; }
                 guideFile(key);
             } else { state.guesses[state.currentRow] += key; persist(); }
             publish();

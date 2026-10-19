@@ -1,12 +1,11 @@
 // Explicit, bounded events only: no SDK, autocapture, replay, or DOM inspection.
 const SCHEMA = {
-    puzzle_started: ['puzzle_id', 'day', 'mode'],
-    guess_submitted: ['puzzle_id', 'day', 'mode', 'attempt', 'solved', 'extra_moves'],
-    puzzle_finished: ['puzzle_id', 'day', 'mode', 'attempt', 'solved', 'extra_moves'],
+    puzzle_started: ['puzzle_id', 'day'],
+    guess_submitted: ['puzzle_id', 'day', 'attempt', 'solved', 'extra_moves'],
+    puzzle_finished: ['puzzle_id', 'day', 'attempt', 'solved', 'extra_moves'],
     tutorial_started: [], tutorial_finished: [], tutorial_skipped: [],
-    mode_changed: ['mode'],
-    share_requested: ['day', 'mode', 'method'],
-    share_completed: ['day', 'mode', 'method'],
+    share_requested: ['day', 'method'],
+    share_completed: ['day', 'method'],
 };
 const KEY = 'chortle:analytics-v1';
 const NOOP = { capture: () => false };
@@ -39,8 +38,7 @@ export function createAnalytics({ enabled = false, token = '', region = 'us', lo
             const clean = { $process_person_profile: false, schema_version: 1 };
             for (const key of SCHEMA[event]) {
                 const value = properties[key];
-                if (key === 'mode' && ['normal', 'line'].includes(value)) clean[key] = value;
-                else if (key === 'method' && ['clipboard', 'native'].includes(value)) clean[key] = value;
+                if (key === 'method' && ['clipboard', 'native'].includes(value)) clean[key] = value;
                 else if (key === 'puzzle_id' && typeof value === 'string' && /^[A-Za-z0-9]{1,20}$/.test(value)) clean[key] = value;
                 else if (key === 'solved' && typeof value === 'boolean') clean[key] = value;
                 else if (['day', 'attempt', 'extra_moves'].includes(key) && Number.isSafeInteger(value) && value >= 0) clean[key] = value;

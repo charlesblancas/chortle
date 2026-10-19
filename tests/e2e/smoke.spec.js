@@ -4,6 +4,22 @@ const { defaultBrowserType: _iPhone13Browser, ...iPhone13 } = devices["iPhone 13
 const { defaultBrowserType: _iPhoneSEBrowser, ...iPhoneSE } = devices["iPhone SE"];
 const { defaultBrowserType: _iPhone15Browser, ...iPhone15 } = devices["iPhone 15"];
 
+async function queueDuplicateMoves(page) {
+    if (await page.locator('.move-queue button[aria-label]').count() === 2) return;
+    for (const uci of ['c2c4', 'c4c5']) {
+        for (const square of [uci.slice(0,2), uci.slice(2,4)]) {
+            const control = page.locator('.live-play [data-square="' + square + '"]');
+            await expect(control).toBeEnabled(); await control.focus(); await control.press('Enter');
+        }
+    }
+    await expect(page.locator('.move-queue button[aria-label]')).toHaveCount(2);
+    await expect(page.getByRole('button', {name:'Undo move', exact:true})).toBeEnabled();
+    await page.locator('.line-count').focus();
+}
+async function typeDuplicateGuess(page) {
+    await queueDuplicateMoves(page);
+    await page.keyboard.type('cynic');
+}
 async function compactGameMetrics(page) {
     return page.evaluate(() => {
         const bounds = (selector) => {
@@ -55,7 +71,7 @@ test('responsive phone guess rows use squares when tall and stay compact when sh
             expect(metrics.board.bottom).toBeLessThanOrEqual(metrics.viewport);
         };
         await checkLayout();
-        await page.keyboard.type('intro');
+        await typeDuplicateGuess(page);
         await checkLayout();
         await page.keyboard.press('Enter');
         await expect(page.getByText('Attempt 2/4')).toBeVisible();
@@ -76,6 +92,7 @@ test.describe('iPhone 15 gameplay', () => {
         expect(help.height).toBeGreaterThanOrEqual(44);
         expect(helpMark.width).toBeLessThan(help.width);
         const checkFit = async () => {
+            await expect.poll(() => page.evaluate(() => document.documentElement.scrollHeight - innerHeight)).toBeLessThanOrEqual(0);
             const tiles = await page.locator('.guess-row .tiles > div:first-child').evaluateAll((nodes) => nodes.map((node) => {
                 const rect = node.getBoundingClientRect();
                 return { width: rect.width, height: rect.height };
@@ -95,7 +112,8 @@ test.describe('iPhone 15 gameplay', () => {
         await page.keyboard.type('a');
         await expect(page.getByRole('alert')).toBeVisible();
         await checkFit();
-        await page.keyboard.type('zzzzz');
+        await queueDuplicateMoves(page);
+        await page.keyboard.type('czczz');
         await checkFit();
         await page.keyboard.press('Enter');
         await expect(page.getByRole('alert')).toContainText('not in word list');
@@ -106,13 +124,13 @@ test.describe('iPhone 15 gameplay', () => {
         await expect(page.getByRole('alert')).toHaveText('Not enough letters');
         await checkFit();
         for (const [index, word] of ['intro', 'irons', 'irony'].entries()) {
-            await page.keyboard.type(word);
+            await typeDuplicateGuess(page);
             await checkFit();
             await page.keyboard.press('Enter');
             await expect(page.getByText(`Attempt ${index + 2}/4`)).toBeVisible();
             await checkFit();
         }
-        await page.keyboard.type('jolly');
+        await typeDuplicateGuess(page);
         await page.keyboard.press('Enter');
         const result = page.getByRole('dialog', { name: 'Out of attempts' });
         await expect(result).toBeVisible();
@@ -151,7 +169,7 @@ test.describe("compact iPhone gameplay", () => {
 
         // A submitted row stays visible as history. Empty future rows are the
         // only rows compact play is allowed to hide.
-        await page.keyboard.type("jolly");
+        await typeDuplicateGuess(page);
         await page.keyboard.press("Enter");
         await expect(page.getByText("Attempt 2/4")).toBeVisible();
         await expect(page.getByRole("group", { name: "Submitted guess row, scored" })).toBeVisible();
@@ -164,7 +182,7 @@ test.describe("compact iPhone gameplay", () => {
         // deliberately avoid A–H so the test exercises the mobile layout
         // without depending on a particular chess position.
         for (const word of ["intro", "irons"]) {
-            await page.keyboard.type(word);
+            await typeDuplicateGuess(page);
             await page.keyboard.press("Enter");
             await expect(page.getByRole("group", { name: "Submitted guess row, scored" })).toHaveCount(
                 ["intro", "irons"].indexOf(word) + 2,
@@ -213,8 +231,11 @@ test.describe("mobile chess move hints", () => {
             await expect(destination).toBeEnabled();
             await destination.focus();
             await page.keyboard.press("Enter");
+            await expect(page.locator('.queue-notation').last()).toHaveText(`${from}→${to}`);
+            await expect(page.getByRole('button', {name:'Undo move', exact:true})).toBeEnabled();
+            await page.locator('.line-count').focus(); await page.keyboard.press(from[0].toLowerCase());
             await expect(page.locator('.guess.active .move').filter({ hasText: `${from}→${to}` })).toBeVisible();
-            await expect(page.locator('.live-play .square-control:enabled').first()).toBeVisible();
+
         };
 
         await playMove("G1", "F3");
@@ -232,31 +253,34 @@ test.describe("mobile chess move hints", () => {
 });
 
 test("confirmed chess moves can be typed, undone, and reused in another word column", async ({ page }) => {
-    await page.goto("/?fixture=mixed-entry");
-    await page.getByRole("button", { name: "Understood" }).click();
-    await page.keyboard.type("njoy");
-    await page.keyboard.press("Enter");
-    await expect(page.getByText("Attempt 2/4")).toBeVisible();
-    const row = page.getByRole("group", { name: "Current guess row" });
-    await page.keyboard.type("e");
-    await expect(row.locator(".move").first()).toHaveText("E2→E4");
-    await expect(page.locator('.live-play .square-control[data-square="e1"]')).toBeEnabled();
-    await page.keyboard.press("Backspace");
-    await expect(row.locator(".move").first()).toHaveText("");
-    await page.keyboard.type("x");
-    await page.getByRole("button", { name: /^E: choose/ }).click();
-    await expect(row.locator(".move").nth(1)).toHaveText("E2→E4");
-    await page.keyboard.type("g");
-    await expect(row.locator(".letter").nth(2)).toHaveText("");
-    await page.keyboard.type("e");
-    await expect(row.locator(".letter").nth(2)).toHaveText("");
+    await page.goto('/?fixture=mixed-entry');
+    await page.getByRole('button', {name:'Understood'}).click();
+    for (const uci of ['g1f3', 'e1e2']) {
+        for (const square of [uci.slice(0,2), uci.slice(2,4)]) {
+            const control = page.locator('[data-square="' + square + '"]');
+            await control.focus(); await control.press('Enter');
+        }
+        await expect(page.locator('.queue-notation').last()).toHaveText(uci === 'g1f3' ? 'G1→F3' : 'E1→E2');
+        await expect(page.getByRole('button', {name:'Undo move', exact:true})).toBeEnabled();
+        await page.locator('.line-count').focus();
+        await page.keyboard.type(uci[0] === 'g' ? 'g' : 'est');
+    }
+    await page.keyboard.press('Enter');
+    await expect(page.getByText('Attempt 2/4')).toBeVisible();
+    await page.keyboard.type('xe');
+    const row = page.getByRole('group', {name:'Current guess row'});
+    await expect(row.locator('.move').nth(1)).toHaveText('E2→E4');
+    await page.keyboard.press('Backspace');
+    await expect(page.locator('.move-queue button[aria-label]')).toHaveCount(1);
+    await page.getByRole('button', {name:'Undo move', exact:true}).click();
+    await expect(page.locator('.move-queue button[aria-label]')).toHaveCount(0);
 });
 
 test("four incorrect guesses end the game", async ({ page }) => {
     await page.goto('/?fixture=duplicate-score');
     await page.getByRole('button', { name: 'Understood' }).click();
     for (const word of ['jolly', 'intro', 'irons', 'irony']) {
-        await page.keyboard.type(word);
+        await typeDuplicateGuess(page);
         await page.keyboard.press('Enter');
     }
     await expect(page.getByRole('dialog', { name: 'Out of attempts' })).toBeVisible();
@@ -433,10 +457,10 @@ test('move hint popup keeps the board and keyboard in place', async ({ page }) =
 test("a mated fixture can be undone without leaving the board locked", async ({ page }) => {
     await page.goto("/?fixture=mate-state");
     await page.getByRole("dialog").getByRole("button", { name: "Understood" }).click();
-    await expect(page.locator(".mate-banner")).toHaveText(/You are mated\. Press Backspace to revise your last move\./);
+    await expect(page.locator('.mate-banner')).toContainText('Use Undo move');
     await page.keyboard.press("I");
-    await expect(page.locator(".game-error")).toHaveText("Position ended. Press Backspace to revise your last move.");
-    await page.keyboard.press("Backspace");
+    await expect(page.locator(".guess.active")).toContainText("I");
+    await page.getByRole("button", { name: "Undo move", exact:true }).click();
     await expect(page.locator(".mate-banner")).toBeHidden();
     await expect(page.getByRole("button", { name: /G[1-8]/ }).first()).toBeVisible();
 });
@@ -453,7 +477,7 @@ test("checkmating the opponent still allows word entry", async ({ page }) => {
     await page.keyboard.press("Enter");
 
     await expect(page.locator(".mate-banner")).toHaveText("Position ended. Finish the word to submit this guess.");
-    await page.getByRole("button", { name: /^I,/ }).click();
+    await page.locator(".line-count").focus(); await page.keyboard.type("fi");
     await expect(page.getByRole("group", { name: "Current guess row" }).getByRole("img", { name: "I; letter not scored" })).toBeVisible();
     await expect(page.locator(".game-error")).toBeHidden();
 });
