@@ -131,6 +131,10 @@
     .glyph-piece { display: block; transform: translateY(-0.03em); }
     .cburnett-wrap { display: grid; width: 100%; height: 100%; place-items: center; }
     .cburnett-wrap img { width: 92%; height: 92%; object-fit: contain; }
+    @media (max-height: 600px) {
+        /* Keep development tools out of the scarce landscape gameplay budget. */
+        .debug-fixtures { display: none; }
+    }
     @media (max-width: 420px) {
         /* Fixture controls are desktop development tools. They should not
            move the playable phone view below the fold. */

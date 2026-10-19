@@ -14,7 +14,7 @@ function undoQueuedMove(word, actions) {
     if (!actions.length) return { word, actions };
     if (placedMoveCount(word) === actions.length) {
         const index = [...word].findLastIndex(letter => FILE_LETTERS.includes(letter));
-        word = word.slice(0, index) + word.slice(index + 1);
+        word = word.slice(0, index);
     }
     return { word, actions: actions.slice(0, -1) };
 }

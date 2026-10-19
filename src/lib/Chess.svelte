@@ -364,7 +364,7 @@
     .board-grid { position: relative; display: block; padding-bottom: 1.55rem; }
     .board { position: relative; width: 100%; aspect-ratio: 1; overflow: hidden; background: #e9e5db; container-type: inline-size; }
     .file-highlight { position: absolute; z-index: 2; top: 0; bottom: 0; width: 12.5%; pointer-events: none; background: rgba(112, 45, 49, 0.1); box-shadow: inset 0 0 0 2px rgba(112, 45, 49, 0.55); }
-    .mate-banner { position: absolute; z-index: 4; top: 50%; left: 50%; width: min(82%, 18rem); box-sizing: border-box; transform: translate(-50%, -50%); padding: 1rem 0.8rem; background: rgba(239, 236, 226, 0.9); border-block: 2px solid var(--burgundy); color: var(--burgundy); text-align: center; font: 700 1.05rem/1.1 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; pointer-events: none; }
+    .mate-banner { position: absolute; z-index: 4; top: 50%; left: 50%; width: min(82%, 18rem); box-sizing: border-box; transform: translate(-50%, -50%); padding: min(1rem, 3cqw) min(0.8rem, 3cqw); background: rgba(239, 236, 226, 0.9); border-block: 2px solid var(--burgundy); color: var(--burgundy); text-align: center; font: 700 min(1.05rem, 4cqw)/1.1 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; pointer-events: none; }
     .promotion-layer { position: absolute; z-index: 6; inset: 0; display: grid; place-items: center; padding: 0.7rem; background: rgba(38, 50, 56, 0.34); }
     .promotion-dialog { width: min(100%, 19rem); padding: 0.8rem 0.75rem 0.65rem; border: 1px solid var(--ink); border-top: 3px solid var(--burgundy); background: var(--panel); color: var(--ink); text-align: center; }
     .promotion-title { margin: 0; font: 700 0.86rem/1 var(--sans); letter-spacing: 0.1em; text-transform: uppercase; }
@@ -375,6 +375,9 @@
     .promotion-piece-image img { width: 100%; height: 100%; object-fit: contain; }
     .promotion-label { font: 700 0.58rem/1 var(--mono); letter-spacing: 0.08em; }
     .promotion-cancel { margin-top: 0.55rem; padding: 0.25rem 0.45rem; border-color: transparent; color: var(--muted); font-size: 0.62rem; text-transform: none; text-decoration: underline; }
+    @container (max-width: 220px) {
+        .promotion-layer { position: fixed; z-index: 110; }
+    }
     @media (hover: hover) {
         .promotion-choice:hover { border-color: var(--burgundy); background: var(--burgundy); color: var(--panel); }
         .promotion-cancel:hover { border-color: transparent; background: transparent; color: var(--burgundy); }
@@ -450,6 +453,9 @@
         box-shadow: 0 0.25rem 0.8rem rgba(38, 50, 56, 0.18);
     }
     .square-controls:focus-within .square-control { min-width: 0; min-height: 2rem; }
+    @media (max-height: 600px) {
+        .square-controls:focus-within { position: fixed; top: 0.5rem; width: min(calc(100% - 1rem), 32rem); max-height: calc(100dvh - 1rem); margin-inline: auto; overflow: auto; }
+    }
     /* The board remains fluid between phone and desktop widths. Reserve only
        the rank-label gutter instead of jumping to a separate 18.5rem board at
        one arbitrary breakpoint. */

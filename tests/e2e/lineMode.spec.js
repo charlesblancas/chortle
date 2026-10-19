@@ -30,9 +30,16 @@ test("iPhone 15 gameplay Line mode queues, undoes, restores and rejects nonwords
         await expect(undo).toBeEnabled();
     };
     await expect(page.getByText('Line mode · 0/3 moves', { exact: true })).toBeVisible();
+    const rail = await page.getByLabel('Line mode move queue').boundingBox();
+    const board = await page.locator('.live-play .board').boundingBox();
+    expect(rail.x + rail.width).toBeLessThanOrEqual(board.x);
+    const ranks = await page.locator('.live-play .rank-labels').boundingBox();
+    expect(rail.x + rail.width).toBeLessThanOrEqual(ranks.x);
+    expect(await page.locator('.empty-move').count()).toBe(3);
     await page.keyboard.press('Enter');
     await expect(page.getByRole('alert')).toContainText('Play 3 chess moves');
     await move('a1f1');
+    expect(await page.locator('.empty-move').count()).toBe(2);
     await expect(page.locator('.queue-notation')).toHaveText(['A1→F1']);
     await expect(current()).toHaveText(['', '', '', '', '']);
     await expect(page.locator('.guess-row.active-row .move')).toHaveText(['', '', '', '', '']);
@@ -53,6 +60,8 @@ test("iPhone 15 gameplay Line mode queues, undoes, restores and rejects nonwords
     await page.keyboard.type('f');
     await expect(page.getByRole('alert')).toContainText('Place A next');
     await page.keyboard.type('zaffz');
+    await expect(page.locator('.live-play .rule')).toHaveCount(1);
+    await expect(page.locator('.live-play .rule')).toContainText('Row complete');
     await page.keyboard.press('Enter');
     await expect(page.getByRole('alert')).toContainText('not in word list');
     await expect(page.getByText('Attempt 1/4')).toBeVisible();

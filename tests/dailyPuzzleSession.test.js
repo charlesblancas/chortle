@@ -54,6 +54,28 @@ test("Line queues separately, places in order, rejects nonwords and preserves un
     session.destroy();
 });
 
+test("Line board undo truncates from its placed letter without shifting the word tail", async () => {
+    const storage = memoryStorage();
+    const session = create({ mode: "line", storage });
+    await session.play("e2e4"); await session.play("g1f3"); await session.play("e1e2");
+    type(session, "EGRET");
+    session.input("Backspace");
+    assert.equal(session.snapshot().guesses[0], "EGRE");
+    assert.equal(session.snapshot().actions.length, 3);
+    session.input("T");
+    session.undoMove();
+    assert.equal(session.snapshot().guesses[0], "EGR");
+    assert.equal(session.snapshot().actions.length, 2);
+    const restored = create({ mode: "line", storage });
+    assert.equal(restored.snapshot().guesses[0], "EGR");
+    assert.equal(restored.snapshot().actions.length, 2);
+    // Undoing an unplaced queued move leaves the typed word intact.
+    await session.play("e1e2");
+    session.undoMove();
+    assert.equal(session.snapshot().guesses[0], "EGR");
+    session.destroy(); restored.destroy();
+});
+
 test("pending replies lock every command and never replace the last durable state", async () => {
     const storage = memoryStorage();
     let resolveReply;

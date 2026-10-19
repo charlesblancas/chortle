@@ -15,6 +15,7 @@
     import { createDailyPuzzleSession } from "./dailyPuzzleSession.js";
     import { preferredGameMode } from "./gameMode.js";
     import { formatUciMove } from "./chessNotation.js";
+    import { fitGameplayViewport } from "./fitGameplayViewport.js";
     const lineMode = preferredGameMode() === "line";
 
     export let fixture = null;
@@ -162,7 +163,7 @@
 <Instructions {pieceSet} canOfferInvitation={hydrated && !restoredCompleted && !fixture?.autoSubmit} />
 <div class="meta"><span>Puzzle {String(selectedDay).padStart(4, "0")}</span><span>{dateLabel}</span><span>Attempt {currentRow + 1}/{ROWS}</span></div>
 <GameOver word={answer} {statuses} {guesses} {actionHistory} {solutionMoves} {solved} {extraMoves} {lineMode} day={selectedDay} attempts={currentRow + 1} maxAttempts={ROWS} {solutionViewing} on:viewSolution={openSolution} on:reset={resetDebugGame} />
-<div class="game-play" class:line-mode={lineMode} class:history-compact={currentRow > 0} class:four-guesses={ROWS === 4} class:solution-board={$gameOver}>
+<div class="game-play" use:fitGameplayViewport class:line-mode={lineMode} class:history-compact={currentRow > 0} class:four-guesses={ROWS === 4} class:solution-board={$gameOver}>
     <div class="guesses">
         {#each guesses as guess, index}
             <div class="guess-row" class:active-row={index === currentRow} class:history-row={index < currentRow} class:unused-row={index > currentRow}>
@@ -175,18 +176,24 @@
         <SolutionViewer fen={game.fen} movesString={game.moves} {pieceSet} {replayStateKey} interactive={solutionViewing && !$showInstructions} on:close={closeSolution} />
     {:else}
         <div class="live-play">
+            <div class="board-with-line" class:has-line={lineMode}>
             <Chess bind:this={gameBoard} fen={game.fen} {session} position={$session} {mated} {terminal} {pieceSet} disabled={$showInstructions || $session.boardDisabled} {highlightFile} on:commit={focusLineInput} on:promotion={(event) => session.setPromotionPending(event.detail.active)} on:preview={(event) => previewLetter = lineMode ? "" : event.detail.letter} />
             {#if lineMode}
                 <div class="line-controls" aria-label="Line mode move queue">
-                    <span class="line-count" bind:this={lineStatus} tabindex="-1" role="status">Line mode · {actions.length}/{requiredMoves} moves</span>
                     <div class="move-queue">
-                        {#each actions as action, index}<button type="button" aria-label={`Place queued ${action.letter}, move ${index + 1}, ${formatUciMove(action.uci)}`} title={formatUciMove(action.uci)} disabled={index !== $session.placedMoves || guesses[currentRow].length >= 5 || engineThinking || promotionPending || $showInstructions} on:click={(event) => { input(action.letter); event.currentTarget.blur(); }}><span>{action.letter}</span><small class="queue-notation">{formatUciMove(action.uci)}</small></button>{/each}
-                        <button type="button" class="undo-move" disabled={!actions.length || engineThinking || promotionPending || $showInstructions} on:click={(event) => { undoBoardMove(); event.currentTarget.blur(); }}>Undo move</button>
+                        {#each actions as action, index}<button type="button" class:placed={index < $session.placedMoves} aria-label={`Place queued ${action.letter}, move ${index + 1}, ${formatUciMove(action.uci)}`} title={formatUciMove(action.uci)} disabled={index !== $session.placedMoves || guesses[currentRow].length >= 5 || engineThinking || promotionPending || $showInstructions} on:click={(event) => { input(action.letter); event.currentTarget.blur(); }}><span class="queue-index">{index + 1}</span><span class="queue-letter">{action.letter}</span><small class="queue-notation">{formatUciMove(action.uci)}</small></button>{/each}
+                        {#each Array(Math.max(0, requiredMoves - actions.length)) as _, index}<div class="empty-move" aria-label={`Move ${actions.length + index + 1}, not played`}><span class="queue-index">{actions.length + index + 1}</span><span aria-hidden="true">—</span></div>{/each}
                     </div>
+                    <button type="button" class="undo-move" aria-label="Undo move" disabled={!actions.length || engineThinking || promotionPending || $showInstructions} on:click={(event) => { undoBoardMove(); event.currentTarget.blur(); }}>↶ <span>Undo move</span></button>
+                    <span class="line-count" bind:this={lineStatus} tabindex="-1" role="status">Line mode · {actions.length}/{requiredMoves} moves</span>
                 </div>
             {/if}
-            {#if guesses[currentRow].length >= 5 && !$gameOver}<p class="row-ready" class:message-active={Boolean(message)} aria-hidden={Boolean(message)}>Row complete · press Enter to submit or Backspace to revise.</p>{/if}
-            <p class="rule">{lineMode ? "Queue moves, then place their letters in order." : "A–H are played from the board."}</p>
+            </div>
+            {#if guesses[currentRow].length >= 5 && !$gameOver}
+                <p class="rule row-ready" class:message-active={Boolean(message)} aria-hidden={Boolean(message)}>Row complete · press Enter to submit or Backspace to revise.</p>
+            {:else}
+                <p class="rule">{lineMode ? "Queue moves, then place their letters in order." : "A–H are played from the board."}</p>
+            {/if}
             <Keyboard {keyStatuses} queuedMoves={lineMode} on:key={(event) => input(event.detail.key)} />
         </div>
     {/if}
@@ -194,18 +201,35 @@
 <svelte:window on:keydown={handleWindowKeydown} on:click={clearGuidance} />
 
 <style>
-    .line-controls { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 0.4rem; margin: 0.3rem auto; font-size: 0.7rem; }
-    .move-queue { display: flex; gap: 0.2rem; align-items: center; }
-    .move-queue button { min-width: 2rem; min-height: 2rem; padding: 0.2rem 0.35rem; font-size: 0.7rem; }
-    .move-queue button:not(.undo-move) { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.2rem; min-height: 2.5rem; }
-    .queue-notation { font: 700 0.48rem/1 var(--mono); white-space: nowrap; }
-    .line-count { color: var(--burgundy); font-weight: bold; }
+    .game-play :global(.chess), .game-play :global(.replay-board) { max-width: min(100%, var(--viewport-board-limit, 100vw)); }
+    .game-play:global(.viewport-compact) .guess-row.history-row,
+    .game-play:global(.viewport-compact) .guess-row.unused-row {
+        --guess-tile-height: 1.35rem !important;
+        --guess-letter-size: 0.78rem !important;
+        --guess-move-size: 0.36rem !important;
+    }
+    .board-with-line.has-line { display:grid; grid-template-columns:clamp(2.75rem, 9vw, 3.65rem) minmax(0,1fr); gap:.75rem; align-items:start; margin-top:.5rem; }
+    /* Desktop rank labels extend 1.65rem left of the board. Keep their gutter
+       clear of the move tiles; phones already reserve it inside board-grid. */
+    @media (min-width:511px) { .board-with-line.has-line { column-gap:1.9rem; } }
+    .has-line :global(.chess) { grid-column:2; grid-row:1; width:100%; margin-top:0; min-width:0; }
+    .line-controls { grid-column:1; grid-row:1; display:flex; flex-direction:column; gap:.35rem; margin:0; min-width:0; }
+    .move-queue { display:flex; flex-direction:column; gap:.25rem; }
+    .move-queue button, .empty-move { position:relative; width:100%; height:clamp(1.8rem, min(4.8vh, calc(var(--viewport-board-limit, 500px) / 7)), 3.65rem); min-height:0; padding:.35rem .05rem .2rem; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:.15rem; border:1px solid var(--line); }
+    .empty-move { color:var(--line); font-size:1.25rem; }
+    .move-queue button { border-color:var(--burgundy); color:var(--burgundy); background:#702d3108; }
+    .move-queue button:disabled { opacity:1; }
+    .move-queue button.placed { color:var(--green); border-color:var(--green); background:#00796b08; }
+    .queue-index { position:absolute; top:.15rem; left:.2rem; font:400 .4rem/1 var(--mono); color:var(--muted); }
+    .queue-letter { font-size:1.3rem; line-height:1; }
+    .queue-notation { font:700 clamp(.36rem, 1.45vw, .48rem)/1 var(--mono); white-space:nowrap; }
+    .undo-move { width:100%; padding:.6rem .05rem; font-size:.5rem; line-height:1.2; border-color:var(--line); }
+    .line-count { color:var(--muted); font-size:.46rem; line-height:1.4; text-align:center; }
     .line-count:focus { outline: none; }
-    .line-mode .live-play :global(.chess) { width: min(100%, max(7rem, calc(var(--mobile-chess-width) - 2.5rem))); }
     .meta { display: flex; justify-content: center; gap: 0.55rem; padding: 0.5rem 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); color: var(--muted); font: 700 0.68rem/1 var(--mono); font-variant-numeric: tabular-nums; letter-spacing: 0.04em; text-align: center; text-transform: uppercase; }
     .meta span + span::before { content: "·"; margin-right: 0.55rem; color: var(--burgundy); }
     .rule { max-width: 30rem; margin: 0.6rem auto 0; padding-top: 0.45rem; border-top: 1px solid var(--line); text-align: center; color: var(--muted); font: 700 0.7rem/1 var(--sans); letter-spacing: 0.08em; text-transform: uppercase; }
-    .row-ready { margin: 0.55rem auto -0.3rem; color: var(--burgundy); text-align: center; font: 700 0.7rem/1.25 var(--sans); letter-spacing: 0.04em; }
+    .rule.row-ready { display:block; color:var(--burgundy); line-height:1.25; letter-spacing:.04em; text-transform:none; }
     .row-ready.message-active { visibility: hidden; }
     .game-play { --mobile-chess-width: 32rem; }
     .guesses { display: flex; flex-direction: column; align-items: center; gap: .25rem; margin: 0.4rem 0 0; }
