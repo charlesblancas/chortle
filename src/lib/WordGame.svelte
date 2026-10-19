@@ -226,10 +226,20 @@
     .undo-move { width:100%; padding:.6rem .05rem; font-size:.5rem; line-height:1.2; border-color:var(--line); }
     .line-count { color:var(--muted); font-size:.46rem; line-height:1.4; text-align:center; }
     .line-count:focus { outline: none; }
+    @media (max-height:700px) {
+        .line-controls { gap:.15rem; }
+        .move-queue { gap:.1rem; }
+        .move-queue button, .empty-move { height:min(4.8vh, calc(var(--viewport-board-limit, 500px) / 8)); padding:.15rem .05rem; gap:.05rem; }
+        .queue-letter { font-size:min(1.1rem, 2.8vh); }
+        .queue-index { font-size:.32rem; top:.08rem; left:.1rem; }
+        .queue-notation { font-size:.36rem; }
+        .undo-move { padding:.3rem .05rem; }
+        .line-count { font-size:.4rem; line-height:1.2; }
+    }
     .meta { display: flex; justify-content: center; gap: 0.55rem; padding: 0.5rem 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); color: var(--muted); font: 700 0.68rem/1 var(--mono); font-variant-numeric: tabular-nums; letter-spacing: 0.04em; text-align: center; text-transform: uppercase; }
     .meta span + span::before { content: "·"; margin-right: 0.55rem; color: var(--burgundy); }
-    .rule { max-width: 30rem; margin: 0.6rem auto 0; padding-top: 0.45rem; border-top: 1px solid var(--line); text-align: center; color: var(--muted); font: 700 0.7rem/1 var(--sans); letter-spacing: 0.08em; text-transform: uppercase; }
-    .rule.row-ready { display:block; color:var(--burgundy); line-height:1.25; letter-spacing:.04em; text-transform:none; }
+    .rule { max-width: 30rem; margin: 0.6rem auto 0; padding-top: 0.45rem; border-top: 1px solid var(--line); text-align: center; color: var(--muted); font: 700 0.7rem/1.25 var(--sans); letter-spacing: 0.04em; text-transform: uppercase; }
+    .rule.row-ready { display:block; color:var(--burgundy); text-transform:none; }
     .row-ready.message-active { visibility: hidden; }
     .game-play { --mobile-chess-width: 32rem; }
     .guesses { display: flex; flex-direction: column; align-items: center; gap: .25rem; margin: 0.4rem 0 0; }
@@ -237,7 +247,6 @@
         .meta { gap: 0.2rem; font-size: 0.56rem; }
         .meta span + span::before { margin-right: 0.2rem; }
         .rule { display: none; }
-        .row-ready { margin: 0.45rem auto 0; font-size: 0.64rem; }
         .guesses { gap: 0.18rem; margin-top: 0.4rem; }
         :global(.keyboard) { margin-top: 0; }
         /* Keep all rows in the grid.  Non-active rows are compressed
