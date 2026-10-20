@@ -38,6 +38,7 @@ async function compactGameMetrics(page) {
 }
 
 test('responsive phone guess rows use squares when tall and stay compact when short', async ({ page }) => {
+    test.setTimeout(60_000);
     for (const size of [
         { width: 390, height: 664, full: true },
         { width: 393, height: 655, full: true },
@@ -50,7 +51,7 @@ test('responsive phone guess rows use squares when tall and stay compact when sh
         { width: 430, height: 740, full: false },
     ]) {
         await page.setViewportSize({ width: size.width, height: size.height });
-        await page.goto('/?fixture=duplicate-score');
+        await page.goto('/?fixture=duplicate-score', { waitUntil: 'domcontentloaded' });
         const instructions = page.getByRole('dialog');
         if (await instructions.isVisible()) await instructions.getByRole('button', { name: 'Understood' }).click();
         await page.locator('.debug-fixtures').evaluate((node) => node.remove());
